@@ -1,0 +1,5 @@
+// 공통 유틸 모듈 - 프로젝트 전반에서 쓰는 잡다한 정적 유틸 모음
+dependencies {
+    implementation 'org.apache.commons:commons-lang3:3.12.0'   // 버전 직접 박음 (낡음)
+    implementation 'com.fasterxml.jackson.core:jackson-databind' // BOM 버전 사용
+}

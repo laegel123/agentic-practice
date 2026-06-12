@@ -1,0 +1,10 @@
+// 코어 프레임워크 모듈 - 공통 엔티티/응답/예외/페이징 등 기반 클래스
+dependencies {
+    implementation project(':common-util')
+
+    implementation 'org.springframework:spring-context'
+    implementation 'org.springframework:spring-web'
+    implementation 'org.springframework.data:spring-data-jpa'
+    implementation 'jakarta.persistence:jakarta.persistence-api'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+}

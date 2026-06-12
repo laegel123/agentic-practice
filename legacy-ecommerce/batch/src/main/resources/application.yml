@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: batch
+  main:
+    web-application-type: none
+  datasource:
+    # 이커머스 서비스와 '같은' H2 파일 DB 를 본다 (공유DB). 스키마는 이커머스가 만든다.
+    url: jdbc:h2:file:~/legacyshopdb;AUTO_SERVER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false

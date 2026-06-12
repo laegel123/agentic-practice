@@ -1,0 +1,44 @@
+// =====================================================================
+// legacy-shop 멀티모듈 빌드
+// NOTE: 버전 카탈로그(libs.versions.toml) 안 씀. 각 모듈에서 버전 직접 박는다.
+//       (예전부터 이렇게 굳어졌고 건드리면 깨질까봐 아무도 안 고침)
+// =====================================================================
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.15' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
+}
+
+allprojects {
+    group = 'com.legacy.shop'
+    version = '1.0.0'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+
+    // 테스트? 거의 없음. 그래도 태스크는 살려둔다.
+    test {
+        useJUnitPlatform()
+    }
+}

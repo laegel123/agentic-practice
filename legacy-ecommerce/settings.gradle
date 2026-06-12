@@ -1,0 +1,8 @@
+rootProject.name = 'legacy-shop'
+
+include 'common-util'
+include 'core-framework'
+include 'ecommerce-service'
+include 'payment-service'
+include 'admin'
+include 'batch'

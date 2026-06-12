@@ -1,0 +1,11 @@
+// 어드민 전용 모듈 - 상품/주문/회원/환불 관리. 서비스들을 HTTP(RestTemplate)로 호출한다.
+plugins {
+    id 'org.springframework.boot'
+}
+
+dependencies {
+    implementation project(':core-framework')
+    implementation project(':common-util')
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+}

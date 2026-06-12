@@ -1,0 +1,16 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: admin
+
+# 어드민 인증 토큰 (하드코딩 기본값)
+admin:
+  token: admin-secret
+
+# 호출 대상 서비스 주소
+ecommerce:
+  base-url: http://localhost:8081
+payment:
+  base-url: http://localhost:8082
