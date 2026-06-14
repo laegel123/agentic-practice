@@ -1,0 +1,3 @@
+# 훅 스크립트는 Windows(Git for Windows)에서 sh 로 실행되므로 항상 LF 줄바꿈을 강제한다.
+# CRLF 로 체크아웃되면 '#!/bin/sh\r' 가 잘못된 인터프리터로 해석되어 훅이 깨진다.
+pre-push text eol=lf

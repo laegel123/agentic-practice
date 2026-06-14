@@ -1,0 +1,64 @@
+#!/bin/sh
+# pre-push 훅 — 두 가지 가드레일을 수행한다.
+#
+#  1) main 강제 푸쉬(non-fast-forward) / 삭제 차단
+#     - 일반 fast-forward 푸쉬, main 신규 생성, feature 브랜치 force-push 는 허용.
+#  2) 푸쉬 전 테스트 게이트
+#     - 삭제가 아닌(=실제로 무언가 올리는) 푸쉬가 하나라도 있으면 './gradlew test' 를 돌리고,
+#       실패하면 푸쉬를 중단한다. (브랜치 무관, "무조건" 실행)
+#
+# 두 검사 모두 'git push --no-verify' 로 우회 가능하다(의도적 우회 통로).
+# 원격에서의 확정적 강제푸쉬 차단은 GitHub 브랜치 보호로 따로 설정한다(.githooks/README.md).
+#
+# pre-push 는 stdin 으로 다음 형식의 라인을 받는다:
+#   <local ref> <local sha> <remote ref> <remote sha>
+
+protected="main"
+
+# sha 가 전부 0 인지(삭제/신규 생성 표식) 판정. SHA-1/SHA-256 길이 무관.
+is_zero() {
+  case "$1" in
+    '' | *[!0]*) return 1 ;;  # 비었거나 '0' 이외 문자가 있으면 zero 아님
+    *)           return 0 ;;
+  esac
+}
+
+need_tests=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # 삭제가 아닌 ref(올라가는 커밋이 있는 ref)가 하나라도 있으면 테스트 대상.
+  if ! is_zero "$local_sha"; then
+    need_tests=1
+  fi
+
+  # ----- (1) main 보호 검사 -----
+  if [ "$remote_ref" = "refs/heads/$protected" ]; then
+    # main 삭제 차단
+    if is_zero "$local_sha"; then
+      echo "✋ '$protected' 브랜치 삭제는 차단됩니다." >&2
+      exit 1
+    fi
+    # main 강제 푸쉬(non-fast-forward) 차단 (remote 가 신규가 아닐 때만)
+    if ! is_zero "$remote_sha"; then
+      if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+        echo "✋ '$protected' 에 대한 강제 푸쉬(non-fast-forward)는 차단됩니다." >&2
+        echo "   히스토리 덮어쓰기는 사고 위험이 큽니다. 정말 의도했다면 'git push --no-verify' 로만 우회하세요." >&2
+        exit 1
+      fi
+    fi
+  fi
+done
+
+# ----- (2) 푸쉬 전 테스트 게이트 -----
+if [ "$need_tests" -eq 1 ]; then
+  root=$(git rev-parse --show-toplevel) || exit 1
+  gradle_dir="$root/legacy-ecommerce"
+  echo "▶ 푸쉬 전 테스트 실행: (cd legacy-ecommerce && ./gradlew test)" >&2
+  if ! ( cd "$gradle_dir" && ./gradlew test --console=plain ); then
+    echo "✋ 테스트 실패 — 푸쉬를 중단합니다. (정말 의도했다면 'git push --no-verify' 로 우회)" >&2
+    exit 1
+  fi
+  echo "✔ 테스트 통과 — 푸쉬를 진행합니다." >&2
+fi
+
+exit 0
