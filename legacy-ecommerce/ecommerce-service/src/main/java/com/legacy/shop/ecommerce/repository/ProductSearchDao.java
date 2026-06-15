@@ -18,8 +18,10 @@ public class ProductSearchDao {
 
     @SuppressWarnings("unchecked")
     public List<Product> searchByName(String keyword) {
-        // 검색어를 쿼리 문자열에 그대로 이어붙인다.
-        String sql = "SELECT * FROM product WHERE active = TRUE AND name LIKE '%" + keyword + "%'";
-        return em.createNativeQuery(sql, Product.class).getResultList();
+        // 검색어는 바인딩 파라미터로 전달한다 — SQL 조각이 아니라 LIKE 값으로만 취급되어 인젝션을 막는다.
+        String sql = "SELECT * FROM product WHERE active = TRUE AND name LIKE :keyword";
+        return em.createNativeQuery(sql, Product.class)
+                .setParameter("keyword", "%" + keyword + "%")
+                .getResultList();
     }
 }

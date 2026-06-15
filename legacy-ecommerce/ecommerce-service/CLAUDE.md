@@ -23,7 +23,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :ecommerce-service:build      # 빌드
 .\gradlew.bat :ecommerce-service:bootRun     # 실행 (:8081)
-.\gradlew.bat :ecommerce-service:test        # 테스트 — characterization 테스트(서비스 4 + 컨텍스트 1)
+.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 characterization 4 + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀)
 ```
 
 > 테스트는 **현재 동작(버그 포함)을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ,
@@ -54,7 +54,7 @@ src/main/java/com/legacy/shop/ecommerce/
 │   └── CustomerService           고객 조회/가입
 ├── domain/                       JPA 엔티티 8 + OrderStatus enum (DB 스키마 소유)
 ├── dto/                          요청/응답 record
-├── repository/                   Spring Data JPA 6 + ProductSearchDao (⚠ native SQL E1)
+├── repository/                   Spring Data JPA 6 + ProductSearchDao (native SQL — E1 ✅ 파라미터 바인딩 수정됨)
 ├── client/PaymentClient          payment 서비스 HTTP 호출 (⚠ raw Map R2, 타임아웃 없음 R8)
 └── config/                       DataSeeder(초기 시드) · RestTemplateConfig
 ```
@@ -64,7 +64,7 @@ src/main/java/com/legacy/shop/ecommerce/
 | GET | `/api/products` | `ProductController.list` (페이징 — ⚠ offset B5) |
 | GET | `/api/products/{id}` | `ProductController.get` |
 | GET | `/api/products/{id}/stock` | `ProductController.stock` |
-| GET | `/api/products/search?keyword=` | `ProductController.search` (⚠ SQL 인젝션 E1) |
+| GET | `/api/products/search?keyword=` | `ProductController.search` (E1 ✅ 파라미터 바인딩 수정됨) |
 | POST | `/api/products` | `ProductController.create` |
 | POST | `/api/carts/{customerId}/items` | `CartController.addItem` |
 | GET | `/api/carts/{customerId}` | `CartController.get` |
@@ -83,9 +83,10 @@ src/main/java/com/legacy/shop/ecommerce/
   금액 계산은 복제하지 말고 `PricingService`/`MoneyUtils` 를 재사용한다.
 - ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.** B1·B2·B4 와 가격 계산은 이미
   characterization 테스트가 현재 동작을 박제하고 있으니, 고칠 때는 같은 커밋에서 단언을 뒤집는다.
-  - **E1 — SQL 인젝션**: `ProductSearchDao.searchByName` 이 검색어를 native SQL 에 문자열로 직접
-    이어붙인다(`/api/products/search` 의 `keyword` 가 그대로 도달). 파라미터 바인딩으로 바꾼다 —
-    모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **E1**.
+  - **E1 — SQL 인젝션 ✅ 수정됨(2026-06-15)**: `ProductSearchDao.searchByName` 이 검색어를 native SQL 에
+    문자열로 이어붙이던 것을 named parameter(`:keyword`) 바인딩으로 교체했다. 회귀 테스트
+    `ProductSearchDaoTest`(정상 검색 보존 + 인젝션 페이로드 차단). 새 native 쿼리도 **반드시 파라미터
+    바인딩**을 쓴다 — 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **E1**.
   - **B1 — 재고 이중차감**: `InventoryService.reserve()` 와 `confirm()` 가 **동일하게 차감**하고
     `OrderService.placeOrder` 가 둘 다 호출 → 주문 1건당 재고 2배 차감.
   - **B2 — 장바구니 합계**: `CartService.cartTotal()` 이 수량을 무시(`total += unitPrice`).
