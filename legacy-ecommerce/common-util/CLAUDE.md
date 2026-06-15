@@ -3,7 +3,7 @@
 > legacy-shop 의 **공용 정적 유틸 라이브러리**. 금액·날짜·문자열·암호·JSON·검증을 다루는 순수 Java
 > 헬퍼 모음으로, Spring·web·DB·엔드포인트가 **없다**. 의존 그래프 **최하단**이라 다른 모든 모듈
 > (`core-framework`/`ecommerce`/`payment`/`admin`/`batch`)이 이걸 의존한다. 전체 시스템 맥락은
-> 모노레포 문서 [`../docs/`](../docs/) 를, 이 모듈의 상세는 [`docs/`](./docs/) 를 본다.
+> 모노레포 문서 [`../docs/`](../docs/) 를 본다(기술부채 백로그 포함).
 
 ## 정체성
 
@@ -55,11 +55,10 @@ src/main/java/com/legacy/shop/common/util/
   - `MoneyUtils.round()` 이름과 달리 **버림**(B3) — 모든 금액 계산이 이 함수를 거친다.
   - `DateUtils` UTC/로컬 혼용(B7) · static `SimpleDateFormat`(R3) · `parse()` null 반환(C4).
   - `CryptoUtils` MD5+무 salt 비밀번호 해시(CU1), `JsonUtils` 오류 처리 비일관(CU2).
-  - 코드·상세는 [`docs/known-issues.md`](./docs/known-issues.md).
+  - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md)(**CU1·CU2·CU3**).
 - 금액은 전사적으로 `double` 로 다룬다(배경 [ADR-0003](../docs/adr/0003-money-as-double.md)). 새 금액 계산은
   복제하지 말고 `MoneyUtils` 에 모은다(`admin` 의 `AdminPriceCalculator` 복붙 사례 R6 참고).
 
 ## 더 읽기
 
-- 이 모듈: [`docs/architecture.md`](./docs/architecture.md) · [`docs/code-conventions.md`](./docs/code-conventions.md) · [`docs/known-issues.md`](./docs/known-issues.md)
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)
+모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(common-util 항목 **CU1·CU2·CU3**·B3·B7·R3·C3·C4) · [`../docs/adr/`](../docs/adr/)

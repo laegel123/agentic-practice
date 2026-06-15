@@ -1,8 +1,7 @@
 # admin
 
 > legacy-shop 의 **관리자 API** 모듈. 자체 DB 없이 ecommerce/payment 서비스를 HTTP 로 호출하는
-> 얇은 **게이트웨이**다(`:8083`). 전체 시스템 맥락은 모노레포 문서 [`../docs/`](../docs/) 를,
-> 이 모듈의 상세는 [`docs/`](./docs/) 를 본다.
+> 얇은 **게이트웨이**다(`:8083`). 전체 시스템 맥락·기술부채 백로그는 모노레포 문서 [`../docs/`](../docs/) 를 본다.
 
 ## 정체성
 
@@ -53,7 +52,7 @@ src/main/java/com/legacy/shop/admin/
 - **인증은 컨트롤러에서 명시적으로** 한다. 보호 엔드포인트는 `@RequestHeader("X-Admin-Token")` 을
   받아 `adminAuth.check(token)` 를 호출한다. 새 엔드포인트도 이 패턴을 **반드시** 따른다.
 - ⚠️ `POST /admin/refunds` 는 현재 **무인증**이다(`AdminRefundController` 가 `AdminAuth` 를 주입하지 않음).
-  알려진 결함이다 — [`docs/known-issues.md`](./docs/known-issues.md) 참고. 모방하지 말 것.
+  알려진 결함이다 — 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **A1** 참고. 모방하지 말 것.
 - ⚠️ 아래는 모노레포 known-issues 에 등록된 안티패턴이다. **새 코드에서 모방하지 말고**, 손대는 김에 개선한다.
   - 게이트웨이가 타입 DTO 없이 raw `Map` 으로 통신(R2) — [`../docs/known-issues.md`](../docs/known-issues.md), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md)
   - `AdminPriceCalculator` 가 ecommerce `PricingService` 계산식을 복붙(R6) — 계산 로직은 한 곳에 모은다
@@ -66,5 +65,4 @@ src/main/java/com/legacy/shop/admin/
 
 ## 더 읽기
 
-- 이 모듈: [`docs/architecture.md`](./docs/architecture.md) · [`docs/code-conventions.md`](./docs/code-conventions.md) · [`docs/known-issues.md`](./docs/known-issues.md)
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)
+모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(admin 항목 **A1**·R2·R5·R6·R8) · [`../docs/adr/`](../docs/adr/)

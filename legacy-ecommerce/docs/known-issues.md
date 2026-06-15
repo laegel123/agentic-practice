@@ -41,6 +41,24 @@
 | C3 | `common-util` | `commons-lang3:3.12.0` 등 오래된 의존성 버전. |
 | C4 | `DateUtils.parse()` | `ParseException` 을 삼키고 `null` 반환. 호출부 NPE 위험. |
 
+## 🔒 모듈 한정 발견 (모듈 탐색에서 승격 — 코드 유지)
+
+각 모듈 탐색에서 나와 기존엔 모듈 문서에만 있던 항목을 이 단일 백로그로 통합했다. 코드(E/A/BT/CU)는
+다른 문서의 참조 호환을 위해 그대로 둔다. **보안 3건(E1·A1·CU1)이 최우선**이다.
+
+| # | 위치 | 증상 | 영향 | 수정 성격 |
+|---|------|------|------|----------|
+| E1 | `ecommerce/repository/ProductSearchDao.java` — `searchByName()` | 🐞 **SQL 인젝션.** 검색어를 native SQL 에 문자열로 직접 이어붙인다. `GET /api/products/search` 의 `keyword` 가 무가공 도달 → 임의 SQL 주입 가능. | 높음(보안) | 동작보존(파라미터 바인딩/`@Query`) |
+| A1 | `admin/web/AdminRefundController.java` | 🐞 **`POST /admin/refunds` 무인증.** 다른 admin 컨트롤러와 달리 `AdminAuth` 를 주입조차 안 해 토큰 검사가 없다. 인증 없이 환불 트리거 가능. | 높음(보안) | 동작변경(인증 추가) |
+| CU1 | `common-util/util/CryptoUtils.java` — `hashPassword()` | 🐞 **MD5 + 무 salt 비밀번호 해시.** 깨진 알고리즘 + salt 없음 → 레인보우테이블·동일비번 노출. 주석도 취약 인정. | 높음(보안) | 동작변경(해시 교체 + 저장값 마이그레이션) |
+| BT1 | `batch/job/SettlementJob.java`, `DailySalesAggregationJob.java` | 🐞 **취소 주문이 매출에 포함.** `OrderRow.status` 를 매핑만 하고 필터에 안 써 `CANCELLED` 도 합산 → 매출 과대계상. | 높음 | 동작변경(상태 필터) |
+| BT2 | `batch/domain/OrderStatus.java` | ⚠️ **enum 복제 드리프트.** 공유 DB 라 ecommerce enum 을 import 못 해 재정의. ecommerce 가 상태 추가 시 batch 는 모르고, 미지값 읽으면 Hibernate 예외. | 중간 | 동작보존(동기화) |
+| CU2 | `common-util/util/JsonUtils.java` | ⚠️ **오류 처리 비일관.** `toJson` 은 예외 삼키고 `null`, `fromJson` 은 `RuntimeException` → 호출부가 일관 처리 불가. | 중간 | 동작보존(정책 통일) |
+| CU3 | `common-util/util/ValidationUtils.java` | ⚠️ **정규식 과허용/지역 고정.** `EMAIL` 단순·과허용, `PHONE` 한국 `01x` 전용(국제·유선 불통과). | 낮음 | 동작변경(정규식 강화) |
+
+> batch `AbandonedCartCleanupJob` 은 이름이 "cleanup" 이지만 삭제 없이 건수만 리포트한다 — **의도된 현재
+> 동작**이라 백로그가 아니라 주의점이다(batch [`CLAUDE.md`](../batch/CLAUDE.md) 참고). 무심코 삭제 로직을 넣지 말 것.
+
 ## 대형 과제 (별도 프로젝트 단위)
 
 - **금액 `double` → `BigDecimal` 전환**(B3 완화의 근본 해결): DTO·엔티티·DB 컬럼까지 파급. [ADR-0003](./adr/0003-money-as-double.md).
@@ -51,7 +69,8 @@
 1. ~~**검증 루프 구축** — 테스트 인프라 + 위 버그들의 현재 동작을 고정하는 characterization 테스트.~~
    ✅ **완료** (2026-06-12): `common-util`/`ecommerce-service`/`payment-service`에 28개 테스트. B1·B2·B3·B4·B6의
    현재 동작이 고정되어 있다. 이제 아래 수정은 해당 단언을 같은 커밋에서 뒤집으며 진행한다.
-2. **고영향·저위험 버그**: B1, B2, B3, B4, B6 (테스트의 단언을 같은 커밋에서 뒤집어 의도를 드러낸다).
-3. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거).
-4. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO).
-5. **대형 과제**: BigDecimal 전환, DB 구조, 설정 외부화(R5), B7 타임존 정리.
+2. **보안 최우선** (모듈 발견): E1(SQL 인젝션)·A1(무인증 환불)·CU1(MD5 해시). 파라미터 바인딩·인증 추가·해시 교체 — 각각 테스트/마이그레이션 선행.
+3. **고영향·저위험 버그**: B1, B2, B3, B4, B6, BT1 (테스트의 단언을 같은 커밋에서 뒤집어 의도를 드러낸다).
+4. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거), CU2(JSON 오류처리).
+5. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO), BT2(enum 동기화).
+6. **대형 과제**: BigDecimal 전환, DB 구조, 설정 외부화(R5), B7 타임존 정리.

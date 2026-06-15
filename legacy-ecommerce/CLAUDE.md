@@ -75,6 +75,7 @@ git config core.hooksPath legacy-ecommerce/.githooks
 - `DateUtils`: `now()`=UTC vs `localToday()`=서버로컬 혼용, static `SimpleDateFormat`(thread-unsafe).
 - `GlobalExceptionHandler` 가 예외를 로그 없이 삼킴. 곳곳에 `System.out.println`.
 - 서비스 간 HTTP가 raw `Map`(타입 없음). 서비스 URL/`admin.token` 하드코딩.
+- ⚠️ **보안 우선 3건**: `ProductSearchDao` SQL 인젝션(E1), `POST /admin/refunds` 무인증(A1), `CryptoUtils` MD5·무 salt 비밀번호 해시(CU1).
 
 전체 목록·우선순위: [`docs/known-issues.md`](./docs/known-issues.md). 결정 배경: [`docs/adr/`](./docs/adr/).
 

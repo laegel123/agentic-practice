@@ -4,7 +4,7 @@
 > (`ErrorCode`/`BusinessException`)·전역 예외 처리·페이징 요청·감사 컬럼 베이스 엔티티를 제공한다.
 > Spring 에 의존하지만 **실행 대상이 아니다**(`application.yml`·포트·엔드포인트 없음 — 라이브러리 jar).
 > 의존 그래프상 `common-util` 바로 위, 앱들 바로 아래라 ecommerce·payment·admin·batch 가 모두 이걸
-> 의존한다. 전체 시스템 맥락은 모노레포 문서 [`../docs/`](../docs/) 를, 이 모듈의 상세는 [`docs/`](./docs/) 를 본다.
+> 의존한다. 전체 시스템 맥락·기술부채 백로그는 모노레포 문서 [`../docs/`](../docs/) 를 본다.
 
 ## 정체성
 
@@ -73,5 +73,4 @@ src/main/java/com/legacy/shop/core/
 
 ## 더 읽기
 
-- 이 모듈: [`docs/architecture.md`](./docs/architecture.md) · [`docs/code-conventions.md`](./docs/code-conventions.md)
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)
+모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(core 항목 B5·R4·B6) · [`../docs/adr/`](../docs/adr/)

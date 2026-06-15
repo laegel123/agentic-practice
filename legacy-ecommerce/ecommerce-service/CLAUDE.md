@@ -2,7 +2,7 @@
 
 > legacy-shop 의 **핵심 도메인 서비스**이자 **DB 스키마 소유자**(`:8081`). 상품·재고·장바구니·주문·
 > 쿠폰·고객을 모두 소유하고, 결제만 payment 서비스에 HTTP 로 위임한다. 전체 시스템 맥락은
-> 모노레포 문서 [`../docs/`](../docs/) 를, 이 모듈의 상세는 [`docs/`](./docs/) 를 본다.
+> 모노레포 문서 [`../docs/`](../docs/) 를, 이 모듈의 상세는 [`docs/architecture.md`](./docs/architecture.md) 를 본다.
 
 ## 정체성
 
@@ -85,7 +85,7 @@ src/main/java/com/legacy/shop/ecommerce/
   characterization 테스트가 현재 동작을 박제하고 있으니, 고칠 때는 같은 커밋에서 단언을 뒤집는다.
   - **E1 — SQL 인젝션**: `ProductSearchDao.searchByName` 이 검색어를 native SQL 에 문자열로 직접
     이어붙인다(`/api/products/search` 의 `keyword` 가 그대로 도달). 파라미터 바인딩으로 바꾼다 —
-    [`docs/known-issues.md`](./docs/known-issues.md).
+    모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **E1**.
   - **B1 — 재고 이중차감**: `InventoryService.reserve()` 와 `confirm()` 가 **동일하게 차감**하고
     `OrderService.placeOrder` 가 둘 다 호출 → 주문 1건당 재고 2배 차감.
   - **B2 — 장바구니 합계**: `CartService.cartTotal()` 이 수량을 무시(`total += unitPrice`).
@@ -97,5 +97,5 @@ src/main/java/com/legacy/shop/ecommerce/
 
 ## 더 읽기
 
-- 이 모듈: [`docs/architecture.md`](./docs/architecture.md) · [`docs/code-conventions.md`](./docs/code-conventions.md) · [`docs/known-issues.md`](./docs/known-issues.md)
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)
+- 이 모듈: [`docs/architecture.md`](./docs/architecture.md) — 도메인 모델·주문 흐름 7단계·설정·시딩·테스트 루프 상세
+- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1**·B1·B2·B4·R1·R2·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)
