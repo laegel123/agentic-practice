@@ -8,4 +8,8 @@ dependencies {
     implementation project(':common-util')
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // 테스트 (검증 루프) — JUnit5 + Mockito + AssertJ + Spring Test 번들. 버전은 BOM 관리.
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

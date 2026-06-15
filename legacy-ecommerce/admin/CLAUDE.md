@@ -17,7 +17,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :admin:build      # 빌드
 .\gradlew.bat :admin:bootRun    # 실행 (:8083)
-.\gradlew.bat :admin:test       # 테스트 — 현재 테스트 소스 없음
+.\gradlew.bat :admin:test       # 테스트 — AdminRefundControllerTest (A1 인증 회귀, 3개)
 ```
 
 > ⚠️ `:admin:bootRun` 전에 **ecommerce(:8081)·payment(:8082) 가 먼저 떠 있어야** 한다.
@@ -45,14 +45,15 @@ src/main/java/com/legacy/shop/admin/
 | POST | `/admin/products` | `AdminProductController.create` | ✅ | ecommerce `POST /api/products` |
 | GET | `/admin/orders/{id}` | `AdminOrderController.get` | ✅ | ecommerce `GET /api/orders/{id}` |
 | GET | `/admin/orders/preview-total` | `AdminOrderController.previewTotal` | ✅ | (로컬 `AdminPriceCalculator`) |
-| POST | `/admin/refunds` | `AdminRefundController.refund` | ⚠️ **없음** | payment `POST /api/payments/refund` |
+| POST | `/admin/refunds` | `AdminRefundController.refund` | ✅ `X-Admin-Token` (A1 ✅ 수정됨) | payment `POST /api/payments/refund` |
 
 ## 이 모듈에서 일할 때 주의점
 
 - **인증은 컨트롤러에서 명시적으로** 한다. 보호 엔드포인트는 `@RequestHeader("X-Admin-Token")` 을
   받아 `adminAuth.check(token)` 를 호출한다. 새 엔드포인트도 이 패턴을 **반드시** 따른다.
-- ⚠️ `POST /admin/refunds` 는 현재 **무인증**이다(`AdminRefundController` 가 `AdminAuth` 를 주입하지 않음).
-  알려진 결함이다 — 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **A1** 참고. 모방하지 말 것.
+- ✅ `POST /admin/refunds` 의 무인증 결함(**A1**)은 **2026-06-15 수정됨** — 이제 다른 컨트롤러와 동일하게
+  `AdminAuth.check(token)` 로 `X-Admin-Token` 을 검사한다. 회귀 테스트 `AdminRefundControllerTest`
+  (모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **A1**). admin 의 모든 보호 엔드포인트는 이 패턴을 따른다.
 - ⚠️ 아래는 모노레포 known-issues 에 등록된 안티패턴이다. **새 코드에서 모방하지 말고**, 손대는 김에 개선한다.
   - 게이트웨이가 타입 DTO 없이 raw `Map` 으로 통신(R2) — [`../docs/known-issues.md`](../docs/known-issues.md), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md)
   - `AdminPriceCalculator` 가 ecommerce `PricingService` 계산식을 복붙(R6) — 계산 로직은 한 곳에 모은다

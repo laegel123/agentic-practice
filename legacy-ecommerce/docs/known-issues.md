@@ -44,12 +44,12 @@
 ## 🔒 모듈 한정 발견 (모듈 탐색에서 승격 — 코드 유지)
 
 각 모듈 탐색에서 나와 기존엔 모듈 문서에만 있던 항목을 이 단일 백로그로 통합했다. 코드(A/BT/CU)는
-다른 문서의 참조 호환을 위해 그대로 둔다. 보안 3건 중 **E1 ✅ 완료(2026-06-15)**, **A1·CU1 이 남은 최우선**이다.
+다른 문서의 참조 호환을 위해 그대로 둔다. 보안 3건 중 **E1·A1 ✅ 완료(2026-06-15)**, **CU1 이 남은 최우선**이다.
 
 | # | 위치 | 증상 | 영향 | 수정 성격 |
 |---|------|------|------|----------|
 | E1 | `ecommerce/repository/ProductSearchDao.java` — `searchByName()` | ✅ **수정됨(2026-06-15).** (이전) 검색어를 native SQL 에 문자열로 직접 이어붙여 `GET /api/products/search` 의 `keyword` 로 임의 SQL 주입 가능 → **named parameter 바인딩(`:keyword`)으로 교체**. 회귀 테스트 `ProductSearchDaoTest`(정상 검색 보존 + 인젝션 페이로드 차단). | 높음(보안) | 동작보존(파라미터 바인딩) — 완료 |
-| A1 | `admin/web/AdminRefundController.java` | 🐞 **`POST /admin/refunds` 무인증.** 다른 admin 컨트롤러와 달리 `AdminAuth` 를 주입조차 안 해 토큰 검사가 없다. 인증 없이 환불 트리거 가능. | 높음(보안) | 동작변경(인증 추가) |
+| A1 | `admin/web/AdminRefundController.java` | ✅ **수정됨(2026-06-15).** (이전) `POST /admin/refunds` 가 다른 admin 컨트롤러와 달리 `AdminAuth` 를 주입조차 안 해 무인증으로 환불 트리거 가능 → **`AdminAuth` 주입 + `X-Admin-Token` 검사**를 다른 컨트롤러와 동일하게 추가. 회귀 테스트 `AdminRefundControllerTest`(무토큰·오토큰 401 + 게이트웨이 미호출, 유효토큰 성공) — admin 모듈 첫 테스트. | 높음(보안) | 동작변경(인증 추가) — 완료 |
 | CU1 | `common-util/util/CryptoUtils.java` — `hashPassword()` | 🐞 **MD5 + 무 salt 비밀번호 해시.** 깨진 알고리즘 + salt 없음 → 레인보우테이블·동일비번 노출. 주석도 취약 인정. | 높음(보안) | 동작변경(해시 교체 + 저장값 마이그레이션) |
 | BT1 | `batch/job/SettlementJob.java`, `DailySalesAggregationJob.java` | 🐞 **취소 주문이 매출에 포함.** `OrderRow.status` 를 매핑만 하고 필터에 안 써 `CANCELLED` 도 합산 → 매출 과대계상. | 높음 | 동작변경(상태 필터) |
 | BT2 | `batch/domain/OrderStatus.java` | ⚠️ **enum 복제 드리프트.** 공유 DB 라 ecommerce enum 을 import 못 해 재정의. ecommerce 가 상태 추가 시 batch 는 모르고, 미지값 읽으면 Hibernate 예외. | 중간 | 동작보존(동기화) |
@@ -69,7 +69,7 @@
 1. ~~**검증 루프 구축** — 테스트 인프라 + 위 버그들의 현재 동작을 고정하는 characterization 테스트.~~
    ✅ **완료** (2026-06-12): `common-util`/`ecommerce-service`/`payment-service`에 28개 테스트. B1·B2·B3·B4·B6의
    현재 동작이 고정되어 있다. 이제 아래 수정은 해당 단언을 같은 커밋에서 뒤집으며 진행한다.
-2. **보안 최우선** (모듈 발견): ~~E1(SQL 인젝션)~~ ✅ **완료(2026-06-15)** — 파라미터 바인딩 + `ProductSearchDaoTest`. 남은 항목: **A1(무인증 환불)·CU1(MD5 해시)** — 인증 추가·해시 교체(각각 테스트/마이그레이션 선행).
+2. **보안 최우선** (모듈 발견): ~~E1(SQL 인젝션)~~ ✅ **완료(2026-06-15)** — 파라미터 바인딩 + `ProductSearchDaoTest`. ~~A1(무인증 환불)~~ ✅ **완료(2026-06-15)** — `AdminAuth` 주입 + `X-Admin-Token` 검사 + `AdminRefundControllerTest`. 남은 항목: **CU1(MD5 해시)** — 해시 교체(저장 해시 마이그레이션 선행).
 3. **고영향·저위험 버그**: B1, B2, B3, B4, B6, BT1 (테스트의 단언을 같은 커밋에서 뒤집어 의도를 드러낸다).
 4. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거), CU2(JSON 오류처리).
 5. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO), BT2(enum 동기화).

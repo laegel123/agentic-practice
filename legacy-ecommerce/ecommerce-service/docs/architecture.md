@@ -178,7 +178,9 @@ payment:
 
 테스트는 **인메모리 H2 프로파일**(`src/test/resources/application-test.yml` — `jdbc:h2:mem:testdb`,
 `ddl-auto: create-drop`)로 돌아 운영 파일 DB(`~/legacyshopdb`)를 건드리지 않는다. 단위 테스트는
-순수 Mockito 라 컨텍스트를 띄우지 않는다. 모노레포 전체 28개 중 이 모듈이 서비스 4 + 컨텍스트 1.
+순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표는 characterization 테스트(28개)이고, 이 모듈은 추가로
+`repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **34개**
+= characterization 28 + 보안 회귀 6(E1 `ProductSearchDaoTest` 3 + admin A1 `AdminRefundControllerTest` 3).
 
 ## 의존성 / 기동 순서
 
