@@ -19,7 +19,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```powershell
 .\gradlew.bat :common-util:build    # 빌드 (라이브러리 jar)
-.\gradlew.bat :common-util:test     # 테스트 — 현재 테스트 소스 없음
+.\gradlew.bat :common-util:test     # 테스트 — MoneyUtilsTest(B3 등 characterization) + CryptoUtilsTest(CU1 보안 회귀)
 ```
 
 > 실행(`bootRun`) 대상이 아니다. 다른 모듈에 링크되는 라이브러리 jar 일 뿐이다.
@@ -31,7 +31,7 @@ src/main/java/com/legacy/shop/common/util/
 ├── MoneyUtils       금액 계산  — round/applyTax/taxOf/multiply/discount/format, 상수 TAX_RATE=0.1
 ├── DateUtils        날짜/시각  — format/parse/today/now(UTC)/localToday(서버로컬), static SDF
 ├── StringUtils      문자열     — isEmpty/isBlank/nvl/maskCard/join
-├── CryptoUtils      해시       — md5/hashPassword  (⚠ MD5·무 salt)
+├── CryptoUtils      해시       — hashPassword/verifyPassword/needsRehash (PBKDF2+salt; md5 레거시 폴백) ✅CU1
 ├── JsonUtils        JSON       — toJson/fromJson, static ObjectMapper
 └── ValidationUtils  검증       — isEmail/isPhone(한국 01x)/isPositive
 ```
@@ -41,7 +41,7 @@ src/main/java/com/legacy/shop/common/util/
 | `MoneyUtils` | 금액 계산(`double`) | `round()` 가 `Math.floor` **버림**(B3) |
 | `DateUtils` | 날짜·시각 변환 | `now()`=UTC vs `localToday()`=서버로컬 혼용(B7), static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
 | `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) |
-| `CryptoUtils` | 비밀번호 해시 | MD5 + 무 salt(CU1) |
+| `CryptoUtils` | 비밀번호 해시 | ✅ PBKDF2+임의 salt (CU1 수정; 레거시 MD5 검증 폴백) |
 | `JsonUtils` | 직렬화/역직렬화 | 오류 처리 비일관(CU2) |
 | `ValidationUtils` | 형식 검증 | 정규식 단순/한국 전용(CU3) |
 
@@ -54,7 +54,7 @@ src/main/java/com/legacy/shop/common/util/
 - ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말고**, 손대는 김에 (테스트 선행 후) 개선한다.
   - `MoneyUtils.round()` 이름과 달리 **버림**(B3) — 모든 금액 계산이 이 함수를 거친다.
   - `DateUtils` UTC/로컬 혼용(B7) · static `SimpleDateFormat`(R3) · `parse()` null 반환(C4).
-  - `CryptoUtils` MD5+무 salt 비밀번호 해시(CU1), `JsonUtils` 오류 처리 비일관(CU2).
+  - `JsonUtils` 오류 처리 비일관(CU2). (`CryptoUtils` CU1 은 ✅ PBKDF2+임의 salt 로 수정됨 — 모방 금지 대상 아님.)
   - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md)(**CU1·CU2·CU3**).
 - 금액은 전사적으로 `double` 로 다룬다(배경 [ADR-0003](../docs/adr/0003-money-as-double.md)). 새 금액 계산은
   복제하지 말고 `MoneyUtils` 에 모은다(`admin` 의 `AdminPriceCalculator` 복붙 사례 R6 참고).

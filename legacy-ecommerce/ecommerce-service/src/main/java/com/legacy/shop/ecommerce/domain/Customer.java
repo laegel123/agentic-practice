@@ -21,7 +21,7 @@ public class Customer extends BaseTimeEntity {
 
     private String phone;
 
-    // MD5 해시된 비밀번호 (salt 없음)
+    // PBKDF2 해시된 비밀번호 (self-describing: 알고리즘·반복수·salt 포함). 레거시 행은 MD5 일 수 있음 — CU1
     private String password;
 
     public Long getId() {

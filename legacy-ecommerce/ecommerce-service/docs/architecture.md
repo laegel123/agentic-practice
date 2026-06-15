@@ -157,7 +157,7 @@ payment:
 `CommandLineRunner` 로 기동 시 `product` 테이블이 비어 있을 때만 1회 적재한다.
 
 - 카테고리 2(전자기기/사무용품), 상품 12 + 각 재고(페이징·검색 확인용, 가격은 소수점 둘째자리).
-- 고객 1명(`hong@example.com` / 비밀번호 `CryptoUtils.hashPassword` = MD5).
+- 고객 1명(`hong@example.com` / 비밀번호 `CryptoUtils.hashPassword` = PBKDF2+임의 salt. 레거시 행은 MD5 일 수 있고 CU1 검증 폴백으로 그대로 통과).
 - 쿠폰 2종: `SAVE20`(20%, 만료 +1년), `WELCOME`(10%, **만료일=오늘**). `WELCOME` 은 B4 off-by-one
   때문에 시드 당일 곧바로 거부되는 경계 케이스다.
 - 이력 주문 3건(PAID 100/50, CANCELLED 30) — batch 정산/집계 확인용. `orderedAt = DateUtils.now()`(UTC).
@@ -179,8 +179,8 @@ payment:
 테스트는 **인메모리 H2 프로파일**(`src/test/resources/application-test.yml` — `jdbc:h2:mem:testdb`,
 `ddl-auto: create-drop`)로 돌아 운영 파일 DB(`~/legacyshopdb`)를 건드리지 않는다. 단위 테스트는
 순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표는 characterization 테스트(28개)이고, 이 모듈은 추가로
-`repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **34개**
-= characterization 28 + 보안 회귀 6(E1 `ProductSearchDaoTest` 3 + admin A1 `AdminRefundControllerTest` 3).
+`repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **40개**
+= characterization 28 + 보안 회귀 12(E1 `ProductSearchDaoTest` 3 + admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6).
 
 ## 의존성 / 기동 순서
 
