@@ -14,6 +14,8 @@ import com.legacy.shop.ecommerce.domain.Product;
 import com.legacy.shop.ecommerce.repository.CartRepository;
 import com.legacy.shop.ecommerce.repository.OrderRepository;
 import com.legacy.shop.ecommerce.repository.ProductRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,8 @@ import java.util.List;
  */
 @Service
 public class OrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
@@ -116,7 +120,7 @@ public class OrderService {
         cartRepository.save(cart);
 
         // 7) 주문완료 알림
-        System.out.println("[알림] 주문완료 orderId=" + order.getId() + ", total=" + order.getTotalAmount());
+        log.info("[알림] 주문완료 orderId={}, total={}", order.getId(), order.getTotalAmount());
 
         return orderRepository.save(order);
     }

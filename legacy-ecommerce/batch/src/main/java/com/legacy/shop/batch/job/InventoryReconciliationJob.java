@@ -2,6 +2,8 @@ package com.legacy.shop.batch.job;
 
 import com.legacy.shop.batch.domain.InventoryRow;
 import com.legacy.shop.batch.repository.InventoryRowRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,6 +11,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class InventoryReconciliationJob {
+
+    private static final Logger log = LoggerFactory.getLogger(InventoryReconciliationJob.class);
 
     private final InventoryRowRepository inventoryRowRepository;
 
@@ -21,10 +25,9 @@ public class InventoryReconciliationJob {
         for (InventoryRow inv : inventoryRowRepository.findAll()) {
             if (inv.getQuantity() < 0) {
                 negatives++;
-                System.out.println("[재고대사] 음수 재고 발견 productId=" + inv.getProductId()
-                        + " qty=" + inv.getQuantity());
+                log.info("[재고대사] 음수 재고 발견 productId={} qty={}", inv.getProductId(), inv.getQuantity());
             }
         }
-        System.out.println("[재고대사] 음수 재고 건수 = " + negatives);
+        log.info("[재고대사] 음수 재고 건수 = {}", negatives);
     }
 }

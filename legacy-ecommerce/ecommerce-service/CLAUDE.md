@@ -55,7 +55,7 @@ src/main/java/com/legacy/shop/ecommerce/
 ├── domain/                       JPA 엔티티 8 + OrderStatus enum (DB 스키마 소유)
 ├── dto/                          요청/응답 record
 ├── repository/                   Spring Data JPA 6 + ProductSearchDao (native SQL — E1 ✅ 파라미터 바인딩 수정됨)
-├── client/PaymentClient          payment 서비스 HTTP 호출 (⚠ raw Map R2, 타임아웃 없음 R8)
+├── client/PaymentClient          payment 서비스 HTTP 호출 (⚠ raw Map R2; ✅ R8 타임아웃 RestTemplateConfig 에서 설정)
 └── config/                       DataSeeder(초기 시드) · RestTemplateConfig
 ```
 
@@ -99,7 +99,9 @@ src/main/java/com/legacy/shop/ecommerce/
   - **R1 — God method**: `OrderService.placeOrder` 가 재고/주문/쿠폰/가격/결제/장바구니/알림 7책임을
     한 `@Transactional` 에서 처리. **R2 — raw Map** HTTP(`PaymentClient`), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md).
 - 금액은 전사적으로 `double` 로 다루며 `MoneyUtils.round` 를 거친다(**B3 ✅ 수정으로 이제 HALF_UP 반올림**;
-  근본 해결은 `BigDecimal` 전환 [ADR-0003](../docs/adr/0003-money-as-double.md)). `System.out.println`(C1)은 SLF4J 로 교체 대상.
+  근본 해결은 `BigDecimal` 전환 [ADR-0003](../docs/adr/0003-money-as-double.md)). ✅ `System.out.println`(C1)은
+  `OrderService`·`DataSeeder` 모두 SLF4J 로거로 교체됨(2026-06-16). ✅ `PaymentClient` 의 `RestTemplate` 타임아웃(R8)도
+  `RestTemplateConfig` 에서 connect 2s/read 5s 로 설정됨.
 
 ## 더 읽기
 

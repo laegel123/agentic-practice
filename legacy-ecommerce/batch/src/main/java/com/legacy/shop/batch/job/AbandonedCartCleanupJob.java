@@ -2,6 +2,8 @@ package com.legacy.shop.batch.job;
 
 import com.legacy.shop.batch.domain.CartRow;
 import com.legacy.shop.batch.repository.CartRowRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -12,6 +14,8 @@ import java.time.LocalDateTime;
  */
 @Component
 public class AbandonedCartCleanupJob {
+
+    private static final Logger log = LoggerFactory.getLogger(AbandonedCartCleanupJob.class);
 
     private final CartRowRepository cartRowRepository;
 
@@ -27,6 +31,6 @@ public class AbandonedCartCleanupJob {
                 candidates++;
             }
         }
-        System.out.println("[장바구니정리] 정리 대상(30일 경과) = " + candidates + "건");
+        log.info("[장바구니정리] 정리 대상(30일 경과) = {}건", candidates);
     }
 }

@@ -27,7 +27,8 @@
 - (~) ✅ **B3 해결됨(2026-06-16)**: `MoneyUtils.round()` 가 `Math.floor`(버림) → `BigDecimal.setScale(2, HALF_UP)`
   반올림으로 교체됐다(`MoneyUtilsTest` 회귀). 다만 값은 여전히 `double` 이라 부동소수 오차의 근본 해결은 아니다.
   [known-issues.md](../known-issues.md) B3.
-- (−) `admin` 의 `AdminPriceCalculator` 가 같은 계산식을 복붙해(R6) 정밀도 정책이 분산된다. ⚠ B3 이후로는
-  `MoneyUtils`(반올림)와 이 복붙본(`Math.floor` 버림)이 **반올림 방식까지 달라** ±0.01 어긋날 수 있다.
+- (~) ✅ **R6 해결됨(2026-06-16)**: `admin` 의 `AdminPriceCalculator` 가 계산식을 복붙(자체 `Math.floor`)하던
+  것을 공용 `MoneyUtils.taxOf`/`round`(HALF_UP) 위임으로 교체했다 → 정밀도 정책이 한 곳(`MoneyUtils`)으로 모이고
+  B3 이후 ±0.01 어긋나던 분기도 사라졌다(`AdminPriceCalculatorTest` 회귀). [known-issues.md](../known-issues.md) R6.
 - **재검토 트리거**: 정산/회계 정합성 요구가 커지는 시점. 근본 해결은 금액 타입을 `BigDecimal`
   로 전환하는 것이며, 이는 엔티티·DTO·DB 컬럼·직렬화까지 파급되는 대형 과제다(완화책인 round 반올림은 ✅ 완료).

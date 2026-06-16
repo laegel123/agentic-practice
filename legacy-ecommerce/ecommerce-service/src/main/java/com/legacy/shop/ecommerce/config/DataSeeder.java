@@ -15,6 +15,8 @@ import com.legacy.shop.ecommerce.repository.CustomerRepository;
 import com.legacy.shop.ecommerce.repository.InventoryRepository;
 import com.legacy.shop.ecommerce.repository.OrderRepository;
 import com.legacy.shop.ecommerce.repository.ProductRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +27,8 @@ import java.time.LocalDate;
  */
 @Component
 public class DataSeeder implements CommandLineRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
 
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
@@ -98,7 +102,7 @@ public class DataSeeder implements CommandLineRunner {
         seedOrder(c.getId(), 50.00, OrderStatus.PAID);
         seedOrder(c.getId(), 30.00, OrderStatus.CANCELLED);
 
-        System.out.println("[seed] 초기 데이터 적재 완료");
+        log.info("[seed] 초기 데이터 적재 완료");
     }
 
     private void seedOrder(Long customerId, double total, OrderStatus status) {

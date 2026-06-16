@@ -3,6 +3,8 @@ package com.legacy.shop.batch.job;
 import com.legacy.shop.batch.domain.OrderRow;
 import com.legacy.shop.batch.domain.OrderStatus;
 import com.legacy.shop.batch.repository.OrderRowRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class SettlementJob {
+
+    private static final Logger log = LoggerFactory.getLogger(SettlementJob.class);
 
     private final OrderRowRepository orderRowRepository;
 
@@ -25,7 +29,7 @@ public class SettlementJob {
             }
             revenue += o.getTotalAmount();
         }
-        System.out.println("[정산] 총 매출 = " + revenue);
+        log.info("[정산] 총 매출 = {}", revenue);
         return revenue;
     }
 }

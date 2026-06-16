@@ -2,6 +2,8 @@ package com.legacy.shop.core.web;
 
 import com.legacy.shop.core.error.BusinessException;
 import com.legacy.shop.core.error.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -12,6 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Object>> handleBusiness(BusinessException e) {
         ErrorCode ec = e.getErrorCode();
@@ -21,8 +25,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleEtc(Exception e) {
-        // 그냥 500 으로 내려준다. (로그도 안 남기고 원인도 안 본다)
-        return ResponseEntity.status(500)
-                .body(ApiResponse.error("C001", "서버 오류가 발생했습니다"));
+        // 비즈니스 외 예외는 500 으로 내려주되, 원인 추적이 가능하도록 스택트레이스를 남긴다 (R4).
+        // 응답 자체는 종전과 동일(INTERNAL_ERROR = status 500 / code "C001" / 동일 메시지)하다.
+        ErrorCode ec = ErrorCode.INTERNAL_ERROR;
+        log.error("처리되지 않은 예외 — {} 로 응답한다", ec.getCode(), e);
+        return ResponseEntity.status(ec.getStatus())
+                .body(ApiResponse.error(ec.getCode(), ec.getMessage()));
     }
 }

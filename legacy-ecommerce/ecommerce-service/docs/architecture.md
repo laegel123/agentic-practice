@@ -102,7 +102,7 @@ OrderController.place(PlaceOrderRequest)
      5) 결제 호출(HTTP)          PaymentClient.charge(orderId, customerId, total) → payment :8082
                                   실패 시 PAYMENT_FAILED. 성공 시 paymentId 저장 + status=PAID
      6) 재고 확정                각 항목 InventoryService.confirm                ◀ 검증만(차감 없음, B1 ✅)
-     7) 장바구니 비우기 + 알림    cart.clear() / System.out.println (⚠ C1)
+     7) 장바구니 비우기 + 알림    cart.clear() / log.info (SLF4J — C1 ✅)
   → ApiResponse.success(OrderResponse)
 ```
 
@@ -130,7 +130,7 @@ PaymentClient.refund(paymentId, amount)  → POST /api/payments/refund
 ```
 
 ⚠️ raw `Map` 통신(R2, [ADR-0005](../../docs/adr/0005-map-based-inter-service-http.md)),
-`@Value` 로 주입한 하드코딩 URL(R5), `RestTemplateConfig` 의 타임아웃 미설정(R8)이 함께 걸려 있다.
+`@Value` 로 주입한 하드코딩 URL(R5)이 걸려 있다. (`RestTemplateConfig` 타임아웃 미설정 R8 은 ✅ 수정됨 — connect 2s/read 5s.)
 
 ## 설정 (`src/main/resources/application.yml`)
 
@@ -185,10 +185,11 @@ payment:
 순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표 중 `InventoryServiceTest`(5개)는 B1, `CartServiceTest`·
 `CouponServiceTest` 는 B2·B4 수정의 회귀이고(단언을 같은 커밋에서 뒤집음), `ProductServiceTest`(3개)는 B5 페이징
 회귀이며, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다.
-모노레포 전체는 **57개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
+모노레포 전체는 **65개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
 `SettlementJobTest`·`DailySalesAggregationJobTest` 5 + B5 core-framework `PageRequestDtoTest` 4·ecommerce `ProductServiceTest` 3;
 B2·B3·B4·B6 는 기존 characterization 단언을 뒤집어 흡수) + 보안 회귀 12(E1 `ProductSearchDaoTest` 3 +
-admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6).
+admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6) + 동작보존 정리 회귀 8(R4 core-framework
+`GlobalExceptionHandlerTest` 2 + R6 admin `AdminPriceCalculatorTest` 3 + CU2 common-util `JsonUtilsTest` 3).
 
 ## 의존성 / 기동 순서
 

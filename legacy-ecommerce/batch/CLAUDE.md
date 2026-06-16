@@ -65,7 +65,7 @@ src/main/java/com/legacy/shop/batch/
     기준 UTC 날짜로 통일**(`BatchApplication` 에 `@Bean Clock`, 잡 단일 생성자에 `Clock` 주입). 테스트는 고정 Clock 으로
     시각을 박제해 UTC 일경계를 결정론적으로 검증한다. 새 잡에서 '오늘/기간'을 다룰 때도 `LocalDate.now()` 대신 주입
     `Clock`(UTC)을 써 주문 시각과 기준을 맞춘다. [`../docs/known-issues.md`](../docs/known-issues.md) B7.
-  - **C1 — `System.out.println`**: `BatchRunner` 와 모든 잡이 결과를 표준출력으로 찍는다. SLF4J 로 교체 대상.
+  - **C1 — `System.out.println` ✅ 수정됨(2026-06-16)**: `BatchRunner` 와 모든 잡(`SettlementJob`·`DailySalesAggregationJob`·`InventoryReconciliationJob`·`AbandonedCartCleanupJob`)이 표준출력으로 찍던 것을 SLF4J 로거(`log.info`, `{}` 파라미터화)로 교체. 동작 보존(출력처만 stdout→로거).
   - **C2 — 전체 스캔 후 Java 필터**: `findAll()` 후 Java 루프로 거른다. 리포지토리 쿼리로 DB 에서 거르도록.
   - **취소주문 매출 포함 ✅ 수정됨(2026-06-16, BT1)**: (이전) `SettlementJob`·`DailySalesAggregationJob` 이 `status` 를
     매핑만 하고 필터에 안 써 `CANCELLED` 주문도 합산 → **두 잡 모두 `status == CANCELLED` 행 제외**. batch 모듈 첫 테스트

@@ -17,7 +17,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :admin:build      # 빌드
 .\gradlew.bat :admin:bootRun    # 실행 (:8083)
-.\gradlew.bat :admin:test       # 테스트 — AdminRefundControllerTest (A1 인증 회귀, 3개)
+.\gradlew.bat :admin:test       # 테스트 — AdminRefundControllerTest (A1 인증 회귀, 3개) + AdminPriceCalculatorTest (R6 회귀: MoneyUtils 반올림, 3개)
 ```
 
 > ⚠️ `:admin:bootRun` 전에 **ecommerce(:8081)·payment(:8082) 가 먼저 떠 있어야** 한다.
@@ -34,8 +34,8 @@ src/main/java/com/legacy/shop/admin/
 │   └── AdminRefundController    /admin/refunds
 ├── client/ShopGateway           ecommerce/payment HTTP 호출 (RestTemplate + raw Map)
 ├── security/AdminAuth           X-Admin-Token 검증
-├── util/AdminPriceCalculator    금액 미리보기 계산 (⚠ PricingService 로직 복붙)
-├── config/RestTemplateConfig    RestTemplate 빈 (⚠ 타임아웃 미설정)
+├── util/AdminPriceCalculator    금액 미리보기 계산 (✅ R6 — MoneyUtils 위임, PricingService 와 같은 규칙)
+├── config/RestTemplateConfig    RestTemplate 빈 (✅ R8 — connect 2s/read 5s 타임아웃)
 └── dto/RefundCommand            환불 요청 record
 ```
 
@@ -56,10 +56,14 @@ src/main/java/com/legacy/shop/admin/
   (모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **A1**). admin 의 모든 보호 엔드포인트는 이 패턴을 따른다.
 - ⚠️ 아래는 모노레포 known-issues 에 등록된 안티패턴이다. **새 코드에서 모방하지 말고**, 손대는 김에 개선한다.
   - 게이트웨이가 타입 DTO 없이 raw `Map` 으로 통신(R2) — [`../docs/known-issues.md`](../docs/known-issues.md), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md)
-  - `AdminPriceCalculator` 가 ecommerce `PricingService` 계산식을 복붙(R6) — 계산 로직은 한 곳에 모은다
-  - `RestTemplate` 타임아웃 미설정(R8) — 다운스트림 지연 시 무한 대기 위험
   - 서비스 URL·`admin.token`(`admin-secret`) 하드코딩(R5) — 운영은 환경변수/프로파일로 외부화
-- 금액은 `double` 로 다루며 `AdminPriceCalculator` 는 `Math.floor`(버림)로 정리한다.
+  - ✅ **R6 — 계산식 복붙 수정됨(2026-06-16)**: `AdminPriceCalculator` 가 ecommerce `PricingService` 계산식을
+    복붙(자체 `Math.floor`)하던 것을 **공용 `MoneyUtils.taxOf`/`MoneyUtils.round`(HALF_UP) 위임**으로 교체 →
+    PricingService 와 같은 규칙을 공유하고 B3(반올림) 분기도 해소(미리보기=실제). 회귀 `AdminPriceCalculatorTest`.
+    새 금액 계산도 복제하지 말고 `MoneyUtils` 를 쓴다.
+  - ✅ **R8 — 타임아웃 미설정 수정됨(2026-06-16)**: `RestTemplateConfig` 에 `SimpleClientHttpRequestFactory` 로
+    connect 2s/read 5s 타임아웃을 둠 → 다운스트림 지연 시 무한 대기 대신 끊긴다.
+- 금액은 `double` 로 다루며 `AdminPriceCalculator` 는 ✅ `MoneyUtils.round`(HALF_UP 반올림)로 정리한다(R6 수정; 이전 `Math.floor`).
   배경은 [ADR-0003](../docs/adr/0003-money-as-double.md).
 - 응답은 `ApiResponse<T>` 로 감싸고, 오류는 `throw new BusinessException(ErrorCode.XXX)` 로 던진다
   (둘 다 `core-framework` 제공).

@@ -3,6 +3,8 @@ package com.legacy.shop.batch.job;
 import com.legacy.shop.batch.domain.OrderRow;
 import com.legacy.shop.batch.domain.OrderStatus;
 import com.legacy.shop.batch.repository.OrderRowRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -18,6 +20,8 @@ import java.time.LocalDate;
  */
 @Component
 public class DailySalesAggregationJob {
+
+    private static final Logger log = LoggerFactory.getLogger(DailySalesAggregationJob.class);
 
     private final OrderRowRepository orderRowRepository;
     private final Clock clock;
@@ -39,7 +43,7 @@ public class DailySalesAggregationJob {
                 sum += o.getTotalAmount();
             }
         }
-        System.out.println("[집계] 오늘 주문수=" + count + ", 매출=" + sum);
+        log.info("[집계] 오늘 주문수={}, 매출={}", count, sum);
         return new DailySales(count, sum);
     }
 

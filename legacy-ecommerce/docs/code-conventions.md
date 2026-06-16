@@ -95,8 +95,8 @@ public class CouponService {
 
 ## 로깅
 
-- ⚠️ 현재 다수 지점에서 `System.out.println` 으로 로그를 남긴다(`OrderService`, `BatchRunner`, 배치 잡들, `DataSeeder`).
-- **새 코드는 SLF4J** (`private static final Logger log = LoggerFactory.getLogger(...)`)를 사용한다. Spring Boot 가 Logback을 기본 제공한다.
+- ✅ `System.out.println` 은 **C1 수정(2026-06-16)으로 전부 SLF4J 로 교체**됨(`OrderService`·`DataSeeder`·`BatchRunner`·배치 잡 4개). 더 이상 표준출력 로그는 없다.
+- **로그는 SLF4J** (`private static final Logger log = LoggerFactory.getLogger(...)`, `{}` 파라미터화)를 사용한다. Spring Boot 가 Logback을 기본 제공한다. 새 코드도 이 패턴을 따른다.
 
 ## 설정
 

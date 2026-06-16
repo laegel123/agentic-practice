@@ -23,7 +23,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```powershell
 .\gradlew.bat :core-framework:build    # 빌드 (라이브러리 jar)
-.\gradlew.bat :core-framework:test     # 테스트 — PageRequestDtoTest (B5 회귀: getOffset (page-1)*size)
+.\gradlew.bat :core-framework:test     # 테스트 — PageRequestDtoTest (B5 회귀: getOffset (page-1)*size) + GlobalExceptionHandlerTest (R4 회귀: handleEtc 500/C001 보존)
 ```
 
 > 실행(`bootRun`) 대상이 아니다. 다른 모듈에 링크되는 라이브러리 jar 일 뿐이다.
@@ -50,7 +50,7 @@ src/main/java/com/legacy/shop/core/
 | `ErrorCode` | 전사 에러코드 | 모듈 구분 없이 **단일 enum**(비대·드리프트). `REFUND_EXCEEDS_PAYMENT`(PM002)는 B6 수정으로 `RefundService` 에서 사용됨(✅) |
 | `BusinessException` | 업무 예외 | `RuntimeException` 상속, throws 불필요 |
 | `ApiResponse<T>` | 공통 응답 | DTO=record 컨벤션과 달리 **가변 클래스+setter**(jackson 역직렬화용). 성공 코드 `"0000"` 은 enum 밖 리터럴 |
-| `GlobalExceptionHandler` | 전역 예외 처리 | `handleEtc()` 가 예외를 **로그 없이** 일괄 500 으로 삼킴(R4). `ErrorCode.INTERNAL_ERROR` 대신 문자열 하드코딩 |
+| `GlobalExceptionHandler` | 전역 예외 처리 | ✅ `handleEtc()` 가 예외를 **SLF4J 로 로깅** 후 500 으로 내림(R4 수정; 이전엔 로그 없이 삼킴). 코드도 `ErrorCode.INTERNAL_ERROR` 사용(이전 `"C001"` 하드코딩, 응답값은 동일). `GlobalExceptionHandlerTest` 회귀 |
 | `PageRequestDto` | 페이징 요청 | ✅ `getOffset()` `(page-1)*size`(B5 수정; 이전 `page*size` 라 1-based 첫 페이지 건너뜀). `PageRequestDtoTest` 회귀 |
 
 ## 이 모듈에서 일할 때 주의점
@@ -65,8 +65,10 @@ src/main/java/com/legacy/shop/core/
   - **B5 — 페이징 오프셋 오류 ✅ 수정됨(2026-06-16)**: (이전) `PageRequestDto.getOffset()` 이 `page*size`
     라 1-based page 에서 첫 페이지를 통째로 건너뜀 → **`(page-1)*size`** 로 교체(첫 페이지 offset 0). 회귀 테스트
     `PageRequestDtoTest`(core-framework 첫 테스트) + `ProductServiceTest`(첫 페이지 반환). 새 페이징 코드도 이 규약을 따른다.
-  - **R4 — 예외 삼킴**: `GlobalExceptionHandler.handleEtc()` 가 비즈니스 외 예외를 **로그 없이** 500 으로
-    내린다. 원인 추적 불가 — 개선 시 로깅(SLF4J)을 넣고 `ErrorCode.INTERNAL_ERROR` 를 쓴다.
+  - **R4 — 예외 삼킴 ✅ 수정됨(2026-06-16)**: (이전) `GlobalExceptionHandler.handleEtc()` 가 비즈니스 외
+    예외를 **로그 없이** 500 으로 내려 원인 추적 불가 → **SLF4J 로 스택트레이스 로깅 추가 + 하드코딩
+    `"C001"` → `ErrorCode.INTERNAL_ERROR`**(=500/`C001`/동일 메시지라 응답은 종전과 동일, 동작 보존).
+    회귀 테스트 `GlobalExceptionHandlerTest`(순수 단위 — handleEtc 500/`C001` 고정 + handleBusiness 매핑).
   - **단일 `ErrorCode` enum**: 모든 모듈 코드가 한 enum 에 몰려 비대·드리프트 위험. PM002
     (`REFUND_EXCEEDS_PAYMENT`)는 B6 수정으로 `RefundService` 에서 던져진다(✅ 2026-06-16). PM001(`PAYMENT_FAILED`)은 여전히 미사용.
   - 전체 목록은 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md).

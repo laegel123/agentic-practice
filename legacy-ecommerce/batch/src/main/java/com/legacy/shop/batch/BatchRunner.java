@@ -4,6 +4,8 @@ import com.legacy.shop.batch.job.AbandonedCartCleanupJob;
 import com.legacy.shop.batch.job.DailySalesAggregationJob;
 import com.legacy.shop.batch.job.InventoryReconciliationJob;
 import com.legacy.shop.batch.job.SettlementJob;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class BatchRunner implements CommandLineRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(BatchRunner.class);
 
     private final SettlementJob settlementJob;
     private final DailySalesAggregationJob dailySalesAggregationJob;
@@ -30,11 +34,11 @@ public class BatchRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        System.out.println("===== 배치 시작 =====");
+        log.info("===== 배치 시작 =====");
         settlementJob.settle();
         dailySalesAggregationJob.aggregate();
         inventoryReconciliationJob.reconcile();
         abandonedCartCleanupJob.report();
-        System.out.println("===== 배치 종료 =====");
+        log.info("===== 배치 종료 =====");
     }
 }

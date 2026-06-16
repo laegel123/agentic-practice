@@ -19,7 +19,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```powershell
 .\gradlew.bat :common-util:build    # 빌드 (라이브러리 jar)
-.\gradlew.bat :common-util:test     # 테스트 — MoneyUtilsTest(B3 회귀: round HALF_UP) + CryptoUtilsTest(CU1 보안 회귀)
+.\gradlew.bat :common-util:test     # 테스트 — MoneyUtilsTest(B3 회귀: round HALF_UP) + CryptoUtilsTest(CU1 보안 회귀) + JsonUtilsTest(CU2 회귀: fail-fast JsonException)
 ```
 
 > 실행(`bootRun`) 대상이 아니다. 다른 모듈에 링크되는 라이브러리 jar 일 뿐이다.
@@ -32,7 +32,7 @@ src/main/java/com/legacy/shop/common/util/
 ├── DateUtils        날짜/시각  — format/parse/today/now(UTC)/localToday(서버로컬), static SDF
 ├── StringUtils      문자열     — isEmpty/isBlank/nvl/maskCard/join
 ├── CryptoUtils      해시       — hashPassword/verifyPassword/needsRehash (PBKDF2+salt; md5 레거시 폴백) ✅CU1
-├── JsonUtils        JSON       — toJson/fromJson, static ObjectMapper
+├── JsonUtils        JSON       — toJson/fromJson(둘 다 실패 시 JsonException ✅CU2), static ObjectMapper
 └── ValidationUtils  검증       — isEmail/isPhone(한국 01x)/isPositive
 ```
 
@@ -42,7 +42,7 @@ src/main/java/com/legacy/shop/common/util/
 | `DateUtils` | 날짜·시각 변환 | `now()`=UTC, `localToday()`=서버로컬(달력 날짜용). ✅ B7 은 집계 측을 UTC 로 통일해 해소(코드 유지, 주석 정정). static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
 | `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) |
 | `CryptoUtils` | 비밀번호 해시 | ✅ PBKDF2+임의 salt (CU1 수정; 레거시 MD5 검증 폴백) |
-| `JsonUtils` | 직렬화/역직렬화 | 오류 처리 비일관(CU2) |
+| `JsonUtils` | 직렬화/역직렬화 | ✅ 오류 처리 fail-fast 통일(CU2 수정; toJson/fromJson 둘 다 `JsonException`. 이전 toJson null·fromJson RuntimeException) |
 | `ValidationUtils` | 형식 검증 | 정규식 단순/한국 전용(CU3) |
 
 ## 이 모듈에서 일할 때 주의점
@@ -57,7 +57,9 @@ src/main/java/com/legacy/shop/common/util/
     아직 `Math.floor` 라 분기. (모방 금지 대상 아님.)
   - `DateUtils`: static `SimpleDateFormat`(R3) · `parse()` null 반환(C4). (B7 UTC/로컬 혼용은 ✅ 집계 측을
     UTC `Clock` 으로 통일해 해소 — `localToday()` 는 달력 날짜(쿠폰 만료)용으로 유지, UTC 주문 시각 집계엔 쓰지 말 것.)
-  - `JsonUtils` 오류 처리 비일관(CU2). (`CryptoUtils` CU1 은 ✅ PBKDF2+임의 salt 로 수정됨 — 모방 금지 대상 아님.)
+  - `JsonUtils` 오류 처리는 ✅ **CU2 수정으로 fail-fast 통일**(toJson/fromJson 둘 다 실패 시 `JsonException`;
+    이전엔 toJson null·fromJson RuntimeException 으로 비일관). 새 코드도 이 정책을 따른다. (`CryptoUtils` CU1 도
+    ✅ PBKDF2+임의 salt 로 수정됨 — 둘 다 모방 금지 대상 아님.)
   - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md)(**CU1·CU2·CU3**).
 - 금액은 전사적으로 `double` 로 다룬다(배경 [ADR-0003](../docs/adr/0003-money-as-double.md)). 새 금액 계산은
   복제하지 말고 `MoneyUtils` 에 모은다(`admin` 의 `AdminPriceCalculator` 복붙 사례 R6 참고).

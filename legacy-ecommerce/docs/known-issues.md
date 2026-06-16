@@ -26,17 +26,17 @@
 | R1 | `ecommerce/service/OrderService.java` — `placeOrder()` | God method. 재고/주문/쿠폰/가격/결제/장바구니/알림 7책임을 한 `@Transactional` 에서 처리. | 동작보존(추출 리팩토링) |
 | R2 | `ecommerce/client/PaymentClient.java`, `admin/client/ShopGateway.java` | 서비스 간 HTTP를 **타입 DTO 없이 raw `Map`** 으로 주고받고 캐스팅. 계약이 코드에 드러나지 않음. [ADR-0005](./adr/0005-map-based-inter-service-http.md) | 동작보존 |
 | R3 | `common-util/util/DateUtils.java` — static `SDF` | `SimpleDateFormat` 을 static 공유 → **thread-unsafe**. | 동작보존(→ `DateTimeFormatter`) |
-| R4 | `core-framework/web/GlobalExceptionHandler.java` — `handleEtc()` | 모든 비즈니스 외 예외를 **로그 없이** 일괄 500(`C001`)으로 삼킴. 원인 추적 불가. | 대체로 동작보존(+로깅 추가) |
+| R4 | `core-framework/web/GlobalExceptionHandler.java` — `handleEtc()` | ✅ **수정됨(2026-06-16).** (이전) 모든 비즈니스 외 예외를 **로그 없이** 일괄 500(`C001`)으로 삼켜 원인 추적 불가 → **SLF4J 로 스택트레이스 로깅 추가 + 하드코딩 `"C001"` → `ErrorCode.INTERNAL_ERROR`**. `INTERNAL_ERROR`=(500,`C001`,동일 메시지)라 **응답은 종전과 동일**(동작 보존). 회귀 테스트 `GlobalExceptionHandlerTest`(순수 단위, handleEtc 500/`C001` 고정 + handleBusiness 매핑). | 대체로 동작보존(+로깅 추가) — 완료 |
 | R5 | 설정 전반 (`application.yml`, `@Value` 기본값) | 서비스 URL, `admin.token`=`admin-secret`, DB 경로가 **하드코딩**. 운영 분리 불가, 토큰 노출. | 동작보존(외부화) |
-| R6 | `admin/util/AdminPriceCalculator.java` | `PricingService` 계산식을 **복붙**. 로직 이중 관리(한쪽만 고치면 불일치). ⚠ **B3 이후 분기 확대**: `MoneyUtils.round` 는 반올림(HALF_UP)으로 고쳤지만 이 복붙본은 여전히 `Math.floor`(버림) → 같은 금액도 미리보기(admin)와 실제 주문(ecommerce)이 ±0.01 어긋날 수 있다. R6 통합 시 admin 도 `MoneyUtils.round` 를 쓰도록. | 동작보존(통합) |
+| R6 | `admin/util/AdminPriceCalculator.java` | ✅ **수정됨(2026-06-16).** (이전) `PricingService` 계산식을 **복붙**해 로직 이중 관리 + B3 이후 분기 확대(복붙본만 `Math.floor` 버림 → 미리보기/실제 ±0.01 어긋남). → **자체 산식·`TAX_RATE` 상수를 제거하고 공용 `MoneyUtils.taxOf`/`MoneyUtils.round`(HALF_UP) 로 위임**(PricingService 와 같은 세금=소계×세율 반올림, 합계=소계+세금-할인 반올림 규칙 공유) → admin 미리보기도 HALF_UP 반올림이 되어 ecommerce 와 일치(B3 분기 해소). 회귀 테스트 `AdminPriceCalculatorTest`(반올림 적용·할인 반영·MoneyUtils 규칙 일치). | 동작보존(통합; admin 미리보기 floor→round) — 완료 |
 | R7 | 엔티티 전반 (`Product.categoryId` 등) | FK 연관 없이 `Long` id만 보유 → 참조 무결성 없음, 고아 데이터 가능. | 동작변경(스키마 영향) |
-| R8 | `config/RestTemplateConfig.java` | `new RestTemplate()` 에 **타임아웃 미설정**. 결제 서비스 지연 시 호출 스레드 무한 대기 위험. | 동작보존 |
+| R8 | `config/RestTemplateConfig.java` (ecommerce·admin) | ✅ **수정됨(2026-06-16).** (이전) `new RestTemplate()` 에 **타임아웃 미설정** → 다운스트림 지연 시 호출 스레드 무한 대기 위험 → **`SimpleClientHttpRequestFactory` 로 connect 2s / read 5s 타임아웃 설정**(ecommerce `PaymentClient`·admin `ShopGateway` 양쪽 빈). 행 호출이 무한 대기 대신 타임아웃으로 끊긴다(정상 응답 동작은 보존). | 동작보존 — 완료 |
 
 ## 🧹 정리
 
 | # | 위치 | 내용 |
 |---|------|------|
-| C1 | `OrderService`, `BatchRunner`, 배치 잡들, `DataSeeder` 등 | `System.out.println` → SLF4J 로거로 교체. |
+| C1 | `OrderService`, `BatchRunner`, 배치 잡들, `DataSeeder` 등 | ✅ **수정됨(2026-06-16).** `System.out.println` 9곳을 SLF4J 로거(`log.info`/`log.error`, `{}` 파라미터화)로 교체 — `OrderService`·`DataSeeder`(ecommerce), `BatchRunner`·`SettlementJob`·`DailySalesAggregationJob`·`AbandonedCartCleanupJob`·`InventoryReconciliationJob`(batch). 동작 보존(출력처만 stdout→로거). |
 | C2 | `batch/job/*` | `findAll()` 후 Java에서 필터링(전체 스캔). 리포지토리 쿼리로 DB에서 거르도록. |
 | C3 | `common-util` | `commons-lang3:3.12.0` 등 오래된 의존성 버전. |
 | C4 | `DateUtils.parse()` | `ParseException` 을 삼키고 `null` 반환. 호출부 NPE 위험. |
@@ -53,7 +53,7 @@
 | CU1 | `common-util/util/CryptoUtils.java` — `hashPassword()` | ✅ **수정됨(2026-06-15).** (이전) MD5 + 무 salt 비밀번호 해시 → 레인보우테이블·동일비번 노출 → **JDK 내장 PBKDF2(HMAC-SHA256, 매번 임의 salt, self-describing `pbkdf2$iter$salt$hash`)로 교체**. 새 의존성 0개(모듈 "순수 Java" 정체성 유지). MD5 는 평문 복구 불가라 일괄 변환이 불가능 → `verifyPassword` 가 PBKDF2·레거시 MD5 **두 형식을 모두 검증**(투명/점진 마이그레이션), `needsRehash` 로 로그인 시 재해시(upgrade-on-login) 가능. 회귀 테스트 `CryptoUtilsTest`(6개: 형식·salt 비결정성·검증·레거시 폴백·needsRehash·null 안전). | 높음(보안) | 동작변경(해시 교체 + 점진 마이그레이션) — 완료 |
 | BT1 | `batch/job/SettlementJob.java`, `DailySalesAggregationJob.java` | ✅ **수정됨(2026-06-16).** (이전) `OrderRow.status` 를 매핑만 하고 필터에 안 써 `CANCELLED` 도 합산 → 매출 과대계상 → **두 잡 모두 `status == CANCELLED` 행을 합산에서 제외**. `DailySalesAggregationJob.aggregate()` 는 테스트 관측을 위해 `DailySales(count, revenue)` record 반환(읽기 전용 유지). **batch 모듈 첫 테스트 인프라**(`spring-boot-starter-test`) + `SettlementJobTest`·`DailySalesAggregationJobTest`(각 2개, `ReflectionTestUtils` 로 read-only `OrderRow` 픽스처). B7(타임존)은 범위 밖이라 유지. | 높음 | 동작변경(상태 필터) — 완료 |
 | BT2 | `batch/domain/OrderStatus.java` | ⚠️ **enum 복제 드리프트.** 공유 DB 라 ecommerce enum 을 import 못 해 재정의. ecommerce 가 상태 추가 시 batch 는 모르고, 미지값 읽으면 Hibernate 예외. | 중간 | 동작보존(동기화) |
-| CU2 | `common-util/util/JsonUtils.java` | ⚠️ **오류 처리 비일관.** `toJson` 은 예외 삼키고 `null`, `fromJson` 은 `RuntimeException` → 호출부가 일관 처리 불가. | 중간 | 동작보존(정책 통일) |
+| CU2 | `common-util/util/JsonUtils.java` | ✅ **수정됨(2026-06-16).** (이전) `toJson` 은 예외 삼키고 `null`, `fromJson` 은 `RuntimeException` → 호출부 일관 처리 불가 → **fail-fast 로 통일**: 둘 다 실패 시 신규 `JsonException`(RuntimeException 하위) throw. `toJson` 의 null 반환 제거(코드 내 호출부 0건이라 파급 없음). 회귀 테스트 `JsonUtilsTest`(라운드트립·toJson 순환참조 throw·fromJson 파싱오류 throw). | 중간 | 동작보존(정책 통일; toJson null→throw) — 완료 |
 | CU3 | `common-util/util/ValidationUtils.java` | ⚠️ **정규식 과허용/지역 고정.** `EMAIL` 단순·과허용, `PHONE` 한국 `01x` 전용(국제·유선 불통과). | 낮음 | 동작변경(정규식 강화) |
 
 > batch `AbandonedCartCleanupJob` 은 이름이 "cleanup" 이지만 삭제 없이 건수만 리포트한다 — **의도된 현재
@@ -71,6 +71,6 @@
    현재 동작이 고정되어 있다. 이제 아래 수정은 해당 단언을 같은 커밋에서 뒤집으며 진행한다.
 2. **보안 최우선** (모듈 발견) — **3건 모두 ✅ 완료(2026-06-15)**: ~~E1(SQL 인젝션)~~ 파라미터 바인딩 + `ProductSearchDaoTest`. ~~A1(무인증 환불)~~ `AdminAuth` 주입 + `X-Admin-Token` 검사 + `AdminRefundControllerTest`. ~~CU1(MD5 해시)~~ PBKDF2(임의 salt)+레거시 MD5 검증 폴백(점진 마이그레이션) + `CryptoUtilsTest`.
 3. **고영향·저위험 버그 — 전부 ✅ 완료(2026-06-16)**: ~~B1(재고 이중차감)~~ `confirm` 비차감 + `InventoryServiceTest`, ~~B6(과다환불)~~ 한도 검증 + `RefundServiceTest` 단언 뒤집음, ~~B2(장바구니 수량무시)~~ `MoneyUtils.multiply` 합산 + `CartServiceTest` 단언 뒤집음, ~~B3(round 버림)~~ `BigDecimal` HALF_UP + `MoneyUtilsTest` 단언 뒤집음, ~~B4(쿠폰 off-by-one)~~ `isBefore` + `CouponServiceTest` 단언 뒤집음, ~~BT1(취소주문 매출)~~ `CANCELLED` 필터 + batch 첫 테스트(`SettlementJobTest`·`DailySalesAggregationJobTest`), ~~B5(페이지 오프셋)~~ `(page-1)*size` + `PageRequestDtoTest`(core-framework 첫 테스트)·`ProductServiceTest`, ~~B7(집계 타임존)~~ UTC `Clock` 주입으로 집계 기준 통일 + `DailySalesAggregationJobTest` UTC 일경계 회귀. **→ 정합성 버그·고영향 버그 전부 완료.**
-4. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거 — B3 이후 admin floor 분기 해소 포함), CU2(JSON 오류처리).
-5. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO), BT2(enum 동기화).
+4. **동작보존 정리 — 전부 ✅ 완료(2026-06-16)**: ~~C1(로깅)~~ `System.out.println` 9곳 → SLF4J, ~~R4(예외 로깅)~~ `handleEtc` 스택트레이스 로깅 + `ErrorCode.INTERNAL_ERROR`(응답 동일) + `GlobalExceptionHandlerTest`, ~~R8(타임아웃)~~ 양쪽 `RestTemplateConfig` 에 connect 2s/read 5s, ~~R6(중복 제거)~~ `AdminPriceCalculator` → `MoneyUtils` 위임(B3 floor 분기 해소) + `AdminPriceCalculatorTest`, ~~CU2(JSON 오류처리)~~ `JsonUtils` fail-fast `JsonException` 통일 + `JsonUtilsTest`. **→ 동작보존 정리 전부 완료.**
+5. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO), BT2(enum 동기화). ← **다음 차례**
 6. **대형 과제**: BigDecimal 전환, DB 구조, 설정 외부화(R5). (B7 타임존은 ✅ 3단계에서 완료.)

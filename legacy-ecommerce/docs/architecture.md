@@ -67,7 +67,7 @@ H2 파일 DB를 쓰며, **2개의 물리 DB**가 존재한다.
 4. 결제 호출 (HTTP)            PaymentClient.charge ──REST──▶ payment-service :8082
 5. 재고 확정                   InventoryService.confirm (검증만, 차감 없음 — B1 ✅)
 6. 장바구니 비우기             Cart.clear
-7. 주문완료 알림               (현재는 System.out.println)
+7. 주문완료 알림               (SLF4J log.info — C1 ✅)
 ```
 
 > ✅ B1 수정됨(2026-06-16): (이전) 1단계 `reserve()` 와 5단계 `confirm()` 가 **둘 다 재고를 차감**해
@@ -131,7 +131,7 @@ Windows PowerShell 에서는 `.\gradlew.bat`, POSIX 셸(Bash 도구)에서는 `.
   `test { useJUnitPlatform() }` 를 모든 모듈에 공통 적용한다.
 - Spring Boot 플러그인은 루트에서 `apply false` 로 선언하고, 실행 앱 모듈에서만 `id 'org.springframework.boot'` 로 적용한다.
 - 버전 카탈로그(`libs.versions.toml`)는 쓰지 않는다 — 의도적 결정. [ADR-0004](./adr/0004-no-gradle-version-catalog.md).
-- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 57개,
+- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 65개,
   JUnit5 + Mockito + AssertJ; 의존성은 각 모듈 `build.gradle`의 `testImplementation`). characterization +
-  버그수정 회귀(B1·B2·B3·B4·B5·B6·B7·BT1) + 보안 회귀(E1·A1·CU1). 실행은 `./gradlew test`, 인메모리 H2 프로파일(`test`)로
-  실 파일 DB와 격리된다. `core-framework` 는 순수 POJO 검증용 `PageRequestDtoTest`(B5)로 첫 테스트가 생겼다.
+  버그수정 회귀(B1·B2·B3·B4·B5·B6·B7·BT1) + 보안 회귀(E1·A1·CU1) + 동작보존 정리 회귀(R4 `GlobalExceptionHandlerTest`·R6 `AdminPriceCalculatorTest`·CU2 `JsonUtilsTest`).
+  실행은 `./gradlew test`, 인메모리 H2 프로파일(`test`)로 실 파일 DB와 격리된다. `core-framework` 는 순수 POJO 검증용 `PageRequestDtoTest`(B5)로 첫 테스트가 생겼다.
