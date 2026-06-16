@@ -23,7 +23,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```powershell
 .\gradlew.bat :core-framework:build    # 빌드 (라이브러리 jar)
-.\gradlew.bat :core-framework:test     # 테스트 — PageRequestDtoTest (B5 회귀: getOffset (page-1)*size + page≤0 클램프 6개) + GlobalExceptionHandlerTest (R4 회귀: handleEtc 500/C001 보존)
+.\gradlew.bat :core-framework:test     # 테스트 — PageRequestDtoTest·GlobalExceptionHandlerTest
 ```
 
 > 실행(`bootRun`) 대상이 아니다. 다른 모듈에 링크되는 라이브러리 jar 일 뿐이다.
@@ -44,14 +44,14 @@ src/main/java/com/legacy/shop/core/
     └── PageRequestDto           페이징 요청(page 1-based, size)
 ```
 
-| 클래스 | 책임 | ⚠️ 함정 |
+| 클래스 | 책임 | 알아둘 점 |
 |--------|------|---------|
 | `BaseTimeEntity` | 생성/수정 시각 공통 컬럼 | 동작하려면 부트 앱에 `@EnableJpaAuditing` 필요(이 모듈은 켜지 않음). getter 만, setter 없음 |
-| `ErrorCode` | 전사 에러코드 | 모듈 구분 없이 **단일 enum**(비대·드리프트). `REFUND_EXCEEDS_PAYMENT`(PM002)는 B6 수정으로 `RefundService` 에서 사용됨(✅). `INVALID_REFUND_AMOUNT`(PM004)는 B6 후속(음수/0 환불 거부)으로 추가·사용됨(✅) |
+| `ErrorCode` | 전사 에러코드 | 모듈 구분 없이 **단일 enum**(비대·드리프트 위험). `PM001 PAYMENT_FAILED` 는 아직 미사용 |
 | `BusinessException` | 업무 예외 | `RuntimeException` 상속, throws 불필요 |
 | `ApiResponse<T>` | 공통 응답 | DTO=record 컨벤션과 달리 **가변 클래스+setter**(jackson 역직렬화용). 성공 코드 `"0000"` 은 enum 밖 리터럴 |
-| `GlobalExceptionHandler` | 전역 예외 처리 | ✅ `handleEtc()` 가 예외를 **SLF4J 로 로깅** 후 500 으로 내림(R4 수정; 이전엔 로그 없이 삼킴). 코드도 `ErrorCode.INTERNAL_ERROR` 사용(이전 `"C001"` 하드코딩, 응답값은 동일). `GlobalExceptionHandlerTest` 회귀 |
-| `PageRequestDto` | 페이징 요청 | ✅ `getOffset()` `(page-1)*size`(B5 수정; 이전 `page*size` 라 1-based 첫 페이지 건너뜀). ✅ `page≤0` 은 `Math.max(1,page)` 로 클램프(B5 후속 — 음수 offset → `subList` 500 차단). `PageRequestDtoTest` 회귀 |
+| `GlobalExceptionHandler` | 전역 예외 처리 | `handleEtc()` 는 예외를 **SLF4J 로 로깅** 후 500(`INTERNAL_ERROR`)으로 내린다 |
+| `PageRequestDto` | 페이징 요청 | page **1-based**, `getOffset()`=`(page-1)*size`. `page≤0` 은 `Math.max(1,page)` 로 클램프(음수 offset 방지). ⚠️ `size` 음수/상한은 미강제 |
 
 ## 이 모듈에서 일할 때 주의점
 
@@ -59,27 +59,13 @@ src/main/java/com/legacy/shop/core/
   바꾸면 모든 서비스의 응답/에러/스키마로 전파된다. 변경 전 영향 범위를 항상 의식한다.
 - **에러는 새로 만들지 말고 `ErrorCode` 에 추가.** 새 업무 예외는 단일 `ErrorCode` enum 에 항목을 더하고
   `throw new BusinessException(ErrorCode.X)` 로 던진다. 모듈별 enum 을 새로 만들지 않는다(현 컨벤션).
+  단, 이 단일 enum 은 이미 비대해 드리프트 위험이 있다 — 모듈 분리는 별도 과제.
 - **응답은 항상 `ApiResponse`.** 성공은 `ApiResponse.success(data)`(코드 `"0000"`), 실패는 컨트롤러에서
   직접 만들지 말고 `BusinessException` 을 던져 `GlobalExceptionHandler` 가 변환하게 둔다.
-- ⚠️ 아래는 known-issues 등록 결함이다. **새 코드에서 모방하지 말고**, 손대는 김에 (테스트 선행 후) 개선한다.
-  - **B5 — 페이징 오프셋 오류 ✅ 수정됨(2026-06-16)**: (이전) `PageRequestDto.getOffset()` 이 `page*size`
-    라 1-based page 에서 첫 페이지를 통째로 건너뜀 → **`(page-1)*size`** 로 교체(첫 페이지 offset 0). 회귀 테스트
-    `PageRequestDtoTest`(core-framework 첫 테스트) + `ProductServiceTest`(첫 페이지 반환). 새 페이징 코드도 이 규약을 따른다.
-    - **B5 후속 ✅(2026-06-16, 리뷰 차단)**: `setPage` 가 임의 값을 받는데 `(page-1)*size` 만 쓰면 `page=0`(어드민 기본
-      호출 `?page=0` 포함)·음수에서 **음수 offset → 호출부 `subList` 500 크래시**가 났다(원래 `page*size` 땐 0이라 안전했던
-      입력이 픽스 후 크래시로 바뀜). → `getOffset()` 에서 `Math.max(1, page)` 로 첫 페이지 클램프(offset 절대 음수 아님) +
-      `AdminProductController` 페이지 기본값 `0→1`. 회귀 `PageRequestDtoTest`/`ProductServiceTest` 각 `page=0`·음수 케이스 추가.
-      ⚠️ `size` 상한/음수는 여전히 미강제(별도 결함, 이번 범위 밖).
-  - **R4 — 예외 삼킴 ✅ 수정됨(2026-06-16)**: (이전) `GlobalExceptionHandler.handleEtc()` 가 비즈니스 외
-    예외를 **로그 없이** 500 으로 내려 원인 추적 불가 → **SLF4J 로 스택트레이스 로깅 추가 + 하드코딩
-    `"C001"` → `ErrorCode.INTERNAL_ERROR`**(=500/`C001`/동일 메시지라 응답은 종전과 동일, 동작 보존).
-    회귀 테스트 `GlobalExceptionHandlerTest`(순수 단위 — handleEtc 500/`C001` 고정 + handleBusiness 매핑).
-  - **단일 `ErrorCode` enum**: 모든 모듈 코드가 한 enum 에 몰려 비대·드리프트 위험. PM002
-    (`REFUND_EXCEEDS_PAYMENT`)는 B6 수정으로, PM004(`INVALID_REFUND_AMOUNT`, 음수/0 환불 거부)는 B6 후속으로 `RefundService` 에서 던져진다(✅ 2026-06-16). PM001(`PAYMENT_FAILED`)은 여전히 미사용.
-  - 전체 목록은 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md).
-- 금액은 전사적으로 `double`(배경 [ADR-0003](../docs/adr/0003-money-as-double.md)). `ApiResponse` 의
-  `data` 에 금액이 실려도 동일하다.
+- **페이징은 `PageRequestDto` 규약을 따른다**: page 1-based, offset `(page-1)*size`, `page≤0` 은 클램프.
+- 금액이 `ApiResponse.data` 에 실리면 `BigDecimal` 이라 Jackson 이 scale 을 보존해 직렬화한다
+  (응답 JSON 이 `100.0`→`100.00`) — 의도된 동작([ADR-0006](../docs/adr/0006-money-as-bigdecimal.md)).
 
 ## 더 읽기
 
-모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(core 항목 B5·R4·B6) · [`../docs/adr/`](../docs/adr/)
+모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)

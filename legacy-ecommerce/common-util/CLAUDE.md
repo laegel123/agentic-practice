@@ -19,7 +19,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```powershell
 .\gradlew.bat :common-util:build    # 빌드 (라이브러리 jar)
-.\gradlew.bat :common-util:test     # 테스트 — MoneyUtilsTest(B3 회귀: round HALF_UP) + CryptoUtilsTest(CU1 보안 회귀) + JsonUtilsTest(CU2 회귀: fail-fast JsonException)
+.\gradlew.bat :common-util:test     # 테스트 — MoneyUtilsTest·CryptoUtilsTest·JsonUtilsTest
 ```
 
 > 실행(`bootRun`) 대상이 아니다. 다른 모듈에 링크되는 라이브러리 jar 일 뿐이다.
@@ -28,22 +28,22 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```
 src/main/java/com/legacy/shop/common/util/
-├── MoneyUtils       금액 계산  — round(HALF_UP ✅B3)/applyTax/taxOf/multiply/discount/format, 상수 TAX_RATE=0.1
+├── MoneyUtils       금액 계산  — round(HALF_UP)/applyTax/taxOf/multiply/discount/format, 상수 TAX_RATE=0.1
 ├── DateUtils        날짜/시각  — format/parse/today/now(UTC)/localToday(서버로컬), static SDF
 ├── StringUtils      문자열     — isEmpty/isBlank/nvl/maskCard/join
-├── CryptoUtils      해시       — hashPassword/verifyPassword/needsRehash (PBKDF2+salt; md5 레거시 폴백) ✅CU1
-├── JsonUtils        JSON       — toJson/fromJson(둘 다 실패 시 JsonException ✅CU2), static ObjectMapper
+├── CryptoUtils      해시       — hashPassword/verifyPassword/needsRehash (PBKDF2+salt; md5 레거시 폴백)
+├── JsonUtils        JSON       — toJson/fromJson(둘 다 실패 시 JsonException), static ObjectMapper
 └── ValidationUtils  검증       — isEmail/isPhone(한국 01x)/isPositive
 ```
 
-| 클래스 | 책임 | ⚠️ 함정 |
+| 클래스 | 책임 | 알아둘 점 |
 |--------|------|---------|
-| `MoneyUtils` | 금액 계산(`double`) | ✅ `round()` `BigDecimal` **HALF_UP 반올림**(B3 수정; 이전 `Math.floor` 버림) |
-| `DateUtils` | 날짜·시각 변환 | `now()`=UTC, `localToday()`=서버로컬(달력 날짜용). ✅ B7 은 집계 측을 UTC 로 통일해 해소(코드 유지, 주석 정정). static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
-| `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) |
-| `CryptoUtils` | 비밀번호 해시 | ✅ PBKDF2+임의 salt (CU1 수정; 레거시 MD5 검증 폴백). ✅ `hashPassword(null)` 은 NPE 대신 `IllegalArgumentException`(리뷰 후속) |
-| `JsonUtils` | 직렬화/역직렬화 | ✅ 오류 처리 fail-fast 통일(CU2 수정; toJson/fromJson 둘 다 `JsonException`. 이전 toJson null·fromJson RuntimeException) |
-| `ValidationUtils` | 형식 검증 | 정규식 단순/한국 전용(CU3) |
+| `MoneyUtils` | 금액 계산(`BigDecimal`) | 전 메서드 `BigDecimal`(scale 2/HALF_UP). rate(할인율 등 무차원 계수) 인자는 `double` 유지 |
+| `DateUtils` | 날짜·시각 변환 | `now()`=UTC, `localToday()`=서버로컬(달력 날짜용). ⚠️ static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
+| `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) — 새 코드는 commons-lang3 사용 |
+| `CryptoUtils` | 비밀번호 해시 | PBKDF2+임의 salt(레거시 MD5 검증 폴백). `hashPassword(null)` 은 `IllegalArgumentException` |
+| `JsonUtils` | 직렬화/역직렬화 | 오류는 fail-fast — `toJson`/`fromJson` 둘 다 실패 시 `JsonException` |
+| `ValidationUtils` | 형식 검증 | ⚠️ 정규식 단순/한국 전용(CU3) — `EMAIL` 과허용, `PHONE` 은 `01x` 만 |
 
 ## 이 모듈에서 일할 때 주의점
 
@@ -51,19 +51,16 @@ src/main/java/com/legacy/shop/common/util/
   클래스 상단에 한 줄 `/** ... */` 역할 주석. 새 유틸도 이 형태로 추가한다.
 - **재발명 금지**: 이미 `commons-lang3` 와 jackson 을 의존한다. `StringUtils` 가 `isEmpty`/`isBlank`
   같은 commons-lang3 기능을 다시 만든 사례가 있으니 모방하지 말고 기존 라이브러리를 쓴다.
-- ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말고**, 손대는 김에 (테스트 선행 후) 개선한다.
-  - `MoneyUtils.round()` 는 ✅ **B3 수정으로 HALF_UP 반올림**(이전엔 이름과 달리 버림). 모든 금액 계산이 이 함수를
-    거치므로 파급이 크다 — `PricingService` 산출값은 정확히 떨어져 영향 없으나, `admin/AdminPriceCalculator`(R6 복붙)는
-    아직 `Math.floor` 라 분기. (모방 금지 대상 아님.)
-  - `DateUtils`: static `SimpleDateFormat`(R3) · `parse()` null 반환(C4). (B7 UTC/로컬 혼용은 ✅ 집계 측을
-    UTC `Clock` 으로 통일해 해소 — `localToday()` 는 달력 날짜(쿠폰 만료)용으로 유지, UTC 주문 시각 집계엔 쓰지 말 것.)
-  - `JsonUtils` 오류 처리는 ✅ **CU2 수정으로 fail-fast 통일**(toJson/fromJson 둘 다 실패 시 `JsonException`;
-    이전엔 toJson null·fromJson RuntimeException 으로 비일관). 새 코드도 이 정책을 따른다. (`CryptoUtils` CU1 도
-    ✅ PBKDF2+임의 salt 로 수정됨 — 둘 다 모방 금지 대상 아님.)
-  - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md)(**CU1·CU2·CU3**).
-- 금액은 전사적으로 `double` 로 다룬다(배경 [ADR-0003](../docs/adr/0003-money-as-double.md)). 새 금액 계산은
-  복제하지 말고 `MoneyUtils` 에 모은다(`admin` 의 `AdminPriceCalculator` 복붙 사례 R6 참고).
+- **금액은 `MoneyUtils` 에 모은다.** 전 메서드가 `BigDecimal`(scale 2/HALF_UP)을 받고 돌려준다 — 새 금액
+  계산을 복제하지 말고 여기에 추가하며, 비교는 `compareTo`(scale 민감 `equals` 금지). 비율 인자만 `double`
+  ([ADR-0006](../docs/adr/0006-money-as-bigdecimal.md)).
+- ⚠️ 아래는 아직 남은 결함이다. **새 코드에서 모방하지 말고**, 손대는 김에 (테스트 선행 후) 개선한다.
+  - `DateUtils`: static `SimpleDateFormat`(R3, thread-unsafe) · `parse()` 가 `ParseException` 을 삼키고
+    `null` 반환(C4, 호출부 NPE 위험). `now()`=UTC 와 `localToday()`=서버로컬을 혼용하지 말 것.
+  - `ValidationUtils`: `EMAIL` 정규식 과허용, `PHONE` 한국 `01x` 전용(국제·유선 불통과) — CU3.
+  - `commons-lang3:3.12.0` 버전 직접 박음(낡음) — C3.
+  - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md).
 
 ## 더 읽기
 
-모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(common-util 항목 **CU1·CU2·CU3**·B3·B7·R3·C3·C4) · [`../docs/adr/`](../docs/adr/)
+모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)

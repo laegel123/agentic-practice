@@ -10,8 +10,8 @@
   `spring-boot-starter-{web,data-jpa,validation}` + runtime `h2`.
 - **모듈 중 유일하게 JPA 스키마를 생성**한다(`ddl-auto: update`). H2 파일 DB `~/legacyshopdb` 를
   batch 모듈과 공유한다(batch 는 `ddl-auto: none` 로 읽기만).
-- 서비스 7 / 엔티티 8 / 컨트롤러 3 / 리포지토리 6 + native DAO 1. (주문 상태 `OrderStatus` enum 은
-  batch 와 공유하려 `core-framework`(`com.legacy.shop.core.domain`)로 끌어올렸다 — BT2 ✅.)
+- 서비스 7 / 엔티티 8 / 컨트롤러 3 / 리포지토리 6 + native DAO 1. 주문 상태 `OrderStatus` enum 은
+  batch 와 공유하려 `core-framework`(`com.legacy.shop.core.domain`)에 둔다.
   결제만 외부(`PaymentClient` → payment `:8082`)이고 나머지 로직·영속성은 전부 자체 보유.
 - `@EnableJpaAuditing`, `@SpringBootApplication(scanBasePackages = "com.legacy.shop")` 로
   `core-framework` 의 공통 빈(`GlobalExceptionHandler` 등)을 함께 스캔한다.
@@ -24,13 +24,12 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :ecommerce-service:build      # 빌드
 .\gradlew.bat :ecommerce-service:bootRun     # 실행 (:8081)
-.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart[B2]·Coupon[B4]·Order[R1 추출 안전망]·Inventory[B1]·Product[B5 페이징+page≤0 비크래시]) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀) + PaymentClientTest(R2 와이어 계약)
+.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위 + ProductSearchDaoTest + PaymentClientTest
 ```
 
-> 테스트는 **현재 동작(버그 포함)을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ,
-> 인메모리 H2 `test` 프로파일로 실 DB 격리). 아래 버그를 고치면 동작이 바뀌므로 해당 단언을
-> **같은 커밋에서 의도적으로 뒤집어야** 한다 — "초록 만들기"로 약화시키지 말 것. 상세는
-> [`docs/architecture.md`](./docs/architecture.md) "테스트 / 검증 루프".
+> 테스트는 **현재 동작을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ, 인메모리 H2
+> `test` 프로파일로 실 DB 격리). 동작이 바뀌는 수정은 해당 단언을 **같은 커밋에서 의도적으로 뒤집어야**
+> 한다 — "초록 만들기"로 약화시키지 말 것. 상세는 [`docs/architecture.md`](./docs/architecture.md) "테스트 / 검증 루프".
 
 > ⚠️ **가장 먼저 기동**한다. 이 모듈이 스키마를 생성(`ddl-auto: update`)하므로
 > payment·admin·batch 보다 먼저 떠 있어야 한다. 권장 순서: **ecommerce → payment → (admin / batch)**.
@@ -46,26 +45,26 @@ src/main/java/com/legacy/shop/ecommerce/
 │   ├── CartController            /api/carts
 │   └── OrderController           /api/orders
 ├── service/                      비즈니스 로직 (7개)
-│   ├── OrderService              주문 오케스트레이션 7단계 (R1 ✅ private 메서드 추출)
-│   ├── CartService               장바구니                (B2 ✅ cartTotal 수량 반영 수정)
-│   ├── InventoryService          재고 reserve(차감)/confirm(검증만)/restore(복원) (B1 ✅ 이중차감 수정)
+│   ├── OrderService              주문 오케스트레이션 7단계 (단계별 private 메서드 추출)
+│   ├── CartService               장바구니 (cartTotal = 단가×수량 합산)
+│   ├── InventoryService          재고 reserve(차감)/confirm(검증만)/restore(복원)
 │   ├── PricingService            소계→할인→세금→합계 → PricingResult
-│   ├── CouponService             쿠폰 검증               (B4 ✅ 만료 당일 포함 수정)
+│   ├── CouponService             쿠폰 검증 (만료일 당일 포함 유효)
 │   ├── ProductService            상품 조회/검색/등록
 │   └── CustomerService           고객 조회/가입
-├── domain/                       JPA 엔티티 8 (DB 스키마 소유; `OrderStatus` enum 은 BT2 ✅ core-framework 로 이동)
+├── domain/                       JPA 엔티티 8 (DB 스키마 소유)
 ├── dto/                          요청/응답 record
-├── repository/                   Spring Data JPA 6 + ProductSearchDao (native SQL — E1 ✅ 파라미터 바인딩 수정됨)
-├── client/PaymentClient          payment 서비스 HTTP 호출 (R2 ✅ 타입 record client/dto/*; R8 ✅ 타임아웃 RestTemplateConfig)
-└── config/                       DataSeeder(초기 시드) · RestTemplateConfig
+├── repository/                   Spring Data JPA 6 + ProductSearchDao (native SQL — 파라미터 바인딩)
+├── client/PaymentClient          payment 서비스 HTTP 호출 (타입 record client/dto/*)
+└── config/                       DataSeeder(초기 시드) · RestTemplateConfig(connect 2s/read 5s)
 ```
 
 | 메서드 | 경로 | 컨트롤러 |
 |--------|------|----------|
-| GET | `/api/products` | `ProductController.list` (페이징 — offset B5 ✅ `(page-1)*size`) |
+| GET | `/api/products` | `ProductController.list` (페이징) |
 | GET | `/api/products/{id}` | `ProductController.get` |
 | GET | `/api/products/{id}/stock` | `ProductController.stock` |
-| GET | `/api/products/search?keyword=` | `ProductController.search` (E1 ✅ 파라미터 바인딩 수정됨) |
+| GET | `/api/products/search?keyword=` | `ProductController.search` |
 | POST | `/api/products` | `ProductController.create` |
 | POST | `/api/carts/{customerId}/items` | `CartController.addItem` |
 | GET | `/api/carts/{customerId}` | `CartController.get` |
@@ -81,34 +80,14 @@ src/main/java/com/legacy/shop/ecommerce/
 - 공통 규칙 재확인: **생성자 주입만**(`private final`, `@Autowired`/Lombok 금지), DTO 는 `record`,
   엔티티는 `BaseTimeEntity` 상속·`@GeneratedValue(IDENTITY)`·`@Enumerated(STRING)`, 응답은
   `ApiResponse<T>`(성공 `code="0000"`), 오류는 `throw new BusinessException(ErrorCode.X)`.
-  금액 계산은 복제하지 말고 `PricingService`/`MoneyUtils` 를 재사용한다.
-- ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.** 가격 계산 등은 이미
-  characterization 테스트가 현재 동작을 박제하고 있으니, 고칠 때는 같은 커밋에서 단언을 뒤집는다.
-  (B1·B2·B4 는 ✅ 2026-06-16 수정됨 — 아래 참조.)
-  - **E1 — SQL 인젝션 ✅ 수정됨(2026-06-15)**: `ProductSearchDao.searchByName` 이 검색어를 native SQL 에
-    문자열로 이어붙이던 것을 named parameter(`:keyword`) 바인딩으로 교체했다. 회귀 테스트
-    `ProductSearchDaoTest`(정상 검색 보존 + 인젝션 페이로드 차단). 새 native 쿼리도 **반드시 파라미터
-    바인딩**을 쓴다 — 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **E1**.
-  - **B1 — 재고 이중차감 ✅ 수정됨(2026-06-16)**: (이전) `InventoryService.confirm()` 이 `reserve()` 와
-    **동일하게 차감**해 `OrderService.placeOrder` 가 둘 다 호출하면 주문 1건당 재고 2배 차감. → **`confirm()`
-    은 더 이상 차감하지 않고 존재 검증만**(reserve 단계에서 1회만 차감). 회귀 테스트 `InventoryServiceTest`(reserve
-    차감·confirm 불변·reserve→confirm 단일차감·미존재 예외·restore 복원).
-  - **B2 — 장바구니 합계 ✅ 수정됨(2026-06-16)**: (이전) `CartService.cartTotal()` 이 수량을 무시(`total += unitPrice`)
-    → **`MoneyUtils.multiply(unitPrice, quantity)` 합산**. 회귀 `CartServiceTest`(30→80 으로 단언 뒤집음).
-  - **B4 — 쿠폰 off-by-one ✅ 수정됨(2026-06-16)**: (이전) 만료일 당일 거부 → **`expiryDate.isBefore(today)`** 로
-    교체해 만료일 당일 포함 유효(주석과 일치). 회귀 `CouponServiceTest`(당일 거부→유효로 단언 뒤집음).
-  - **R1 — God method ✅ 수정됨(2026-06-16)**: `OrderService.placeOrder` 의 7책임을 의도가 드러나는
-    private 메서드(`reserveStock`·`buildOrder`·`applyPricing`·`pay`·`confirmStock`·`clearCart`·`notifyOrderPlaced`)로
-    추출하고 `placeOrder` 는 단계 흐름만 남겼다(동작보존 — `OrderServiceTest` 단언 무변).
-  - **R2 — raw Map HTTP ✅ 수정됨(2026-06-16)**: `PaymentClient` 요청·응답을 타입 record(`client/dto/*`)로 교체하고
-    `((Number) data.get("paymentId")).longValue()` 캐스팅을 제거했다(charge 는 `exchange(…, ParameterizedTypeReference<ApiResponse<…>>)`).
-    회귀 `PaymentClientTest`(MockRestServiceServer 와이어 계약). [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md).
-- 금액은 전사적으로 `double` 로 다루며 `MoneyUtils.round` 를 거친다(**B3 ✅ 수정으로 이제 HALF_UP 반올림**;
-  근본 해결은 `BigDecimal` 전환 [ADR-0003](../docs/adr/0003-money-as-double.md)). ✅ `System.out.println`(C1)은
-  `OrderService`·`DataSeeder` 모두 SLF4J 로거로 교체됨(2026-06-16). ✅ `PaymentClient` 의 `RestTemplate` 타임아웃(R8)도
-  `RestTemplateConfig` 에서 connect 2s/read 5s 로 설정됨.
+- **금액 계산은 복제하지 말고 `PricingService`/`MoneyUtils` 를 재사용**한다 — 전사 `BigDecimal`
+  (scale 2/HALF_UP), 비교는 `compareTo`([ADR-0006](../docs/adr/0006-money-as-bigdecimal.md)).
+- **native 쿼리는 반드시 파라미터 바인딩**한다(`ProductSearchDao` 가 named parameter `:keyword` 사용 —
+  문자열 결합은 SQL 인젝션). 서비스 간 HTTP 는 raw `Map` 이 아니라 타입 record(`client/dto/*`)로 주고받는다.
+- ⚠️ 아직 남은 모듈 결함(FK 부재 R7 등)은 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) 를
+  본다. 고칠 때는 같은 커밋에서 characterization 단언을 뒤집는다.
 
 ## 더 읽기
 
 - 이 모듈: [`docs/architecture.md`](./docs/architecture.md) — 도메인 모델·주문 흐름 7단계·설정·시딩·테스트 루프 상세
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1 ✅·B1 ✅·B2 ✅·B4 ✅·R1 ✅·R2 ✅**·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)
+- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)

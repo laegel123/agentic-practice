@@ -26,12 +26,11 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :payment-service:build      # 빌드
 .\gradlew.bat :payment-service:bootRun     # 실행 (:8082)
-.\gradlew.bat :payment-service:test        # 테스트 — 8개 (charge 2 + refund 6: 부분/누계전액/과다차단/음수·0거부/미존재)
+.\gradlew.bat :payment-service:test        # 테스트 — charge·refund(부분/누계전액/과다차단/음수·0거부/미존재)
 ```
 
-> 테스트는 JUnit5 + Mockito + AssertJ 기반이다. `RefundServiceTest.overRefund_isBlocked_throwsRefundExceedsPayment`
-> 는 **B6(과다 환불) 수정의 회귀 테스트**다 — 과거의 "막지 않음" 단언을 차단(`REFUND_EXCEEDS_PAYMENT`)으로
-> 뒤집은 것이다. 한도 검증을 약화시키지 말 것. 나머지 refund 케이스는 부분환불/누계 전액환불/미존재 결제를 고정한다.
+> 테스트는 JUnit5 + Mockito + AssertJ 기반의 characterization 테스트다. 환불 한도·음수 거부 단언을
+> 약화시키지 말 것 — 동작을 바꾸면 같은 커밋에서 단언을 의도적으로 뒤집는다.
 
 > 기동 순서: payment 는 외부 의존이 없어 단독으로 떠도 된다. 다만 ecommerce 의 주문 흐름이 런타임에
 > 이 서비스를 호출하므로 권장 전체 순서는 **ecommerce → payment → (admin / batch)** 다.
@@ -47,7 +46,7 @@ src/main/java/com/legacy/shop/payment/
 │   └── PaymentMethodController  /api/payment-methods (add / list)
 ├── service/                    비즈니스 로직 (3개)
 │   ├── PaymentService           charge: APPROVED 결제 + CHARGE 원장 기록
-│   ├── RefundService            refund: 한도 검증(B6 ✅) → REFUND 원장 + 누적액으로 상태 전이
+│   ├── RefundService            refund: 한도·음수 검증 → REFUND 원장 + 누적액으로 상태 전이
 │   └── PaymentMethodService     결제수단 등록/조회 (카드번호는 StringUtils.maskCard 로 마스킹 저장)
 ├── domain/                     JPA 엔티티 4 + enum 2 (자체 스키마 소유)
 │   ├── Payment / Refund / Ledger / PaymentMethod
@@ -59,7 +58,7 @@ src/main/java/com/legacy/shop/payment/
 | 메서드 | 경로 | 요청 → 응답 | 핸들러 |
 |--------|------|------------|--------|
 | POST | `/api/payments/charge` | `ChargeRequest(orderId, customerId, amount, method)` → `PaymentResponse` | `PaymentController.charge` |
-| POST | `/api/payments/refund` | `RefundRequest(paymentId, amount, reason)` → `RefundResponse` | `PaymentController.refund` (한도 초과 시 `REFUND_EXCEEDS_PAYMENT` — B6 ✅) |
+| POST | `/api/payments/refund` | `RefundRequest(paymentId, amount, reason)` → `RefundResponse` | `PaymentController.refund` (한도 초과 `REFUND_EXCEEDS_PAYMENT`, 음수/0 `INVALID_REFUND_AMOUNT`) |
 | GET | `/api/payments/{id}` | → `PaymentResponse` | `PaymentController.get` (없으면 `PAYMENT_NOT_FOUND`) |
 | POST | `/api/payment-methods` | `AddPaymentMethodRequest(customerId, type, cardNo)` → `PaymentMethodResponse` | `PaymentMethodController.add` |
 | GET | `/api/payment-methods?customerId=` | → `List<PaymentMethodResponse>` | `PaymentMethodController.list` |
@@ -73,30 +72,22 @@ src/main/java/com/legacy/shop/payment/
   `ApiResponse<T>`(성공 `code="0000"`), 오류는 `throw new BusinessException(ErrorCode.X)`.
 - **원장(ledger) 불변식**: `charge` 는 반드시 `CHARGE` 원장 1행을, `refund` 는 반드시 `REFUND` 원장
   1행을 함께 기록한다. 결제/환불 로직을 손댈 때 이 짝 기록을 빠뜨리지 말 것(원장이 정산·대사의 근거다).
-- 결제 관련 에러코드는 `core-framework` 의 **단일 `ErrorCode` enum** 에 모여 있다(`PM001` `PAYMENT_FAILED`,
-  `PM002` `REFUND_EXCEEDS_PAYMENT`, `PM003` `PAYMENT_NOT_FOUND`, `PM004` `INVALID_REFUND_AMOUNT`). `PM002` 는 환불 한도
-  검증에서(B6 ✅), `PM004` 는 음수/0 환불액 거부에서(B6 후속 ✅) 던진다. `PM003` 은 결제 미존재 시.
-  `PM001`(`PAYMENT_FAILED`)은 아직 미사용(`charge` 가 항상 성공하는 스텁이라).
-- ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.**
-  - **B6 — 과다 환불 ✅ 수정됨(2026-06-16)**: (이전) `RefundService.refund()` 가 환불 누계가 결제액을 초과해도
-    막지 않아 과다 환불 가능(`REFUND_EXCEEDS_PAYMENT` PM002 미사용). → **환불 전 `기존 누계 + 이번 환불 > 결제액`
-    이면 `BusinessException(REFUND_EXCEEDS_PAYMENT)`** 를 던진다(환불/원장 미기록). 회귀 테스트
-    `RefundServiceTest.overRefund_isBlocked_throwsRefundExceedsPayment` — [`../docs/known-issues.md`](../docs/known-issues.md) B6.
-    - **B6 후속 — 음수/0 환불액 거부 ✅(2026-06-16, 리뷰 차단)**: `amount <= 0` 이면 **`INVALID_REFUND_AMOUNT`(PM004)**
-      로 거부한다(결제 조회 전, 환불/원장 미기록). 음수 환불액은 누계를 **줄여** 과다환불 가드를 통과하고 음수 Refund·원장을
-      만들며 상태를 거꾸로 뒤집을 수 있어서다(`validation` 스타터가 없으므로 서비스 레벨에서 막는다). 회귀
-      `RefundServiceTest.negativeAmount_isRejected…`·`zeroAmount_isRejected…`. ⚠️ 조회→삽입 사이 **TOCTOU 경합**(락/유니크
-      제약 없음)은 미해결 — 동시 환불 2건이 둘 다 통과할 수 있다(단일 H2라 당장 영향은 작음).
-  - **금액 `double`(B3 / [ADR-0003](../docs/adr/0003-money-as-double.md))**: `amount`·원장·환불 누계 비교가
-    전부 `double`. `refundedTotal >= payment.getAmount()` 같은 누적 비교에 부동소수 오차가 끼어들 수 있다.
-    금액을 새로 다룰 때 임의 반올림을 끼워넣지 말고 기존 정책을 따른다.
-  - **시각은 UTC**: `approvedAt`/`refundedAt` 는 `DateUtils.now()`(=**UTC**)로 찍힌다. batch 집계 타임존 혼용은
-    ✅ B7 수정(집계 측을 UTC `Clock` 기준으로 통일)으로 해소됐다 — UTC 저장 시각을 집계할 땐 UTC 기준 날짜를 쓴다.
-    `DateUtils` 의 thread-unsafe `SimpleDateFormat`(R3)은 미해결 — 새 시각 처리에서 답습 금지.
-  - **요청 검증 없음(부분 해소)**: `validation` 스타터가 없어 `@RequestBody` 가 검증되지 않는다. `refund` 의
-    `amount <= 0` 은 ✅ 서비스 레벨에서 막지만(B6 후속, 위 참조), `charge` 의 음수/`null` `amount` 등 나머지 입력은
-    여전히 그대로 통과한다. `charge` 는 외부 PG 연동 없이 **항상 `APPROVED`** 를 반환하는 스텁이다(실패 경로·멱등키 없음).
-    입력 검증을 추가할 때는 위 known-issues 와 동일하게 테스트로 현재 동작을 고정한 뒤 바꾼다.
+- **환불 검증은 서비스 레벨**에서 한다(`validation` 스타터 없음): 환불 누계가 결제액 초과면
+  `REFUND_EXCEEDS_PAYMENT`(PM002), `amount <= 0` 이면 `INVALID_REFUND_AMOUNT`(PM004)로 거부(둘 다 미기록).
+  이 가드를 약화시키지 말 것. 결제 에러코드는 `core-framework` 단일 `ErrorCode` enum 에 있다
+  (`PM001 PAYMENT_FAILED` 는 charge 가 항상 성공하는 스텁이라 미사용, `PM003 PAYMENT_NOT_FOUND`).
+- **금액은 `BigDecimal`(scale 2/HALF_UP)**: `amount`(`payment`·`refund`·`ledger`)·누계 비교가 전부
+  `BigDecimal`(`@Column(precision=19, scale=2)`). 누계 비교는 `compareTo`(scale 민감 `equals` 금지),
+  음수 거부는 `amount.signum() <= 0`(+ null 가드). 임의 반올림을 끼워넣지 말고 `MoneyUtils` 정책을 따른다
+  ([ADR-0006](../docs/adr/0006-money-as-bigdecimal.md)).
+- **시각은 UTC**: `approvedAt`/`refundedAt` 는 `DateUtils.now()`(=UTC)로 찍힌다.
+- ⚠️ 아직 남은 결함 — **새 코드에서 모방하지 말 것**:
+  - **요청 검증 부재(부분)**: `validation` 스타터가 없어 `@RequestBody` 가 검증되지 않는다. `refund` 의
+    `amount <= 0` 은 서비스 레벨에서 막지만, `charge` 의 음수/`null` `amount` 등은 그대로 통과한다.
+    `charge` 는 외부 PG 연동 없이 **항상 `APPROVED`** 를 반환하는 스텁(실패 경로·멱등키 없음)이다.
+  - **TOCTOU 경합**: refund 의 조회→삽입 사이 락/유니크 제약이 없어 동시 환불 2건이 둘 다 통과할 수 있다
+    (단일 H2라 당장 영향은 작음). reserve/confirm 도 동종 경합.
+  - `DateUtils` 의 thread-unsafe `SimpleDateFormat`(R3) — 새 시각 처리에서 답습 금지.
 - 카드번호는 평문 저장하지 않는다. `PaymentMethodService.add` 가 `StringUtils.maskCard` 로 마스킹한
   값(`cardNoMasked`)만 저장한다 — 원본 카드번호를 엔티티/로그에 남기지 말 것.
 
@@ -104,8 +95,7 @@ src/main/java/com/legacy/shop/payment/
 
 - 이 모듈은 자체 `docs/` 가 없다. 상세는 모노레포 공통 문서를 본다:
   [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) ·
-  [`../docs/known-issues.md`](../docs/known-issues.md)(B6) · [`../docs/adr/`](../docs/adr/)(금액 [ADR-0003](../docs/adr/0003-money-as-double.md))
+  [`../docs/known-issues.md`](../docs/known-issues.md) · [`../docs/adr/`](../docs/adr/)
 - 호출자 쪽 맥락: ecommerce 의 [`../ecommerce-service/CLAUDE.md`](../ecommerce-service/CLAUDE.md)
-  (`PaymentClient` → payment `:8082`; R2 ✅ 타입 record 로 교체·R8 ✅ 타임아웃 설정 — 둘 다 2026-06-16 수정).
-  payment 의 요청 record(`ChargeRequest`/`RefundRequest`)는 ecommerce·admin 클라이언트가 보내는 와이어 계약과
-  필드가 일치해야 한다 — 호출자는 자체 `client/dto/*` record 로 같은 바디를 조립한다(공유 계약 모듈은 미도입).
+  (`PaymentClient` → payment `:8082`). payment 의 요청 record(`ChargeRequest`/`RefundRequest`)는
+  ecommerce·admin 클라이언트가 보내는 와이어 계약과 필드가 일치해야 한다(공유 계약 모듈은 미도입).
