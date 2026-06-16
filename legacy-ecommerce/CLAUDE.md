@@ -93,5 +93,7 @@ git config core.hooksPath legacy-ecommerce/.githooks
 ## 남은 대형 과제
 
 - **공유 H2 DB 분리/전환** ([ADR-0002](./docs/adr/0002-shared-h2-file-database.md)) — ecommerce↔batch 공유 구조의 결합·동시성 한계. 설정 외부화([ADR-0007](./docs/adr/0007-config-via-environment-variables.md))로 ecommerce·batch 가 같은 `SHOP_DB_*` 를 읽게 해 **분리 지점이 한 곳에 드러나 있다**.
+  - **1단계 읽기 경계 명시화 ✅** ([ADR-0008](./docs/adr/0008-batch-read-only-shared-db-consumer.md)) — batch 리포지토리를 `ReadOnlyRepository` 로 좁혀 공유 DB 쓰기를 타입 차원에서 막고, 커넥션 `hikari.read-only` 선언, 공유 read 계약을 `SharedSchemaContractTest` 로 고정. 물리 공유 구조는 그대로.
+  - **2단계 물리 분리/외부 DBMS 전환은 미착수** — 인프라 도입으로 "로컬 설정 0개" 정체성이 바뀌므로 ADR-0002 재검토 트리거(다중 인스턴스·데이터량 증가)로 다룬다.
 
 상세·우선순위는 [`docs/known-issues.md`](./docs/known-issues.md) "권장 처리 순서".

@@ -1,7 +1,9 @@
 package com.legacy.shop.batch.repository;
 
 import com.legacy.shop.batch.domain.CartRow;
-import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface CartRowRepository extends JpaRepository<CartRow, Long> {
+/**
+ * cart 테이블 읽기 전용 리포지토리. 쓰기 메서드는 노출하지 않는다([ADR-0008]).
+ */
+public interface CartRowRepository extends ReadOnlyRepository<CartRow, Long> {
 }

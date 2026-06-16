@@ -51,6 +51,10 @@ H2 파일 DB를 쓰며, **2개의 물리 DB**가 존재한다.
 
 - `ecommerce-service` 가 `legacyshopdb` 의 스키마를 만들고, `batch` 는 같은 파일을 **공유**해서 읽는다
   (배치는 `ddl-auto: none`). 따라서 배치는 이커머스가 먼저 떠서 스키마를 만든 뒤에야 정상 동작한다.
+- batch 는 공유 DB 의 **읽기 전용 소비자**다(✅ 2026-06-16, [ADR-0008](./adr/0008-batch-read-only-shared-db-consumer.md)): 리포지토리가
+  `ReadOnlyRepository`(쓰기 메서드 없음)라 공유 DB 쓰기가 타입 차원에서 막히고, 커넥션은 `hikari.read-only`,
+  공유 read 계약(batch 가 읽는 컬럼)은 `SharedSchemaContractTest` 로 고정된다. **물리 공유 구조 자체는 그대로**
+  (기동 순서 의존·파일 DB 동시성 한계는 남음 — 물리 분리는 [ADR-0002] 재검토 트리거).
 - `payment-service` 는 `legacypaydb` 라는 **별도** DB를 쓴다. 이커머스/배치 DB와 분리되어 있다.
 - 접속 URL은 모두 `AUTO_SERVER=TRUE` 라서 여러 프로세스가 동시에 같은 파일 DB에 붙을 수 있다.
 - H2 콘솔: 각 웹 앱의 `/h2-console` (user `sa`, password 없음). 자세한 배경은 [ADR-0002](./adr/0002-shared-h2-file-database.md).
@@ -135,7 +139,7 @@ Windows PowerShell 에서는 `.\gradlew.bat`, POSIX 셸(Bash 도구)에서는 `.
   `test { useJUnitPlatform() }` 를 모든 모듈에 공통 적용한다.
 - Spring Boot 플러그인은 루트에서 `apply false` 로 선언하고, 실행 앱 모듈에서만 `id 'org.springframework.boot'` 로 적용한다.
 - 버전 카탈로그(`libs.versions.toml`)는 쓰지 않는다 — 의도적 결정. [ADR-0004](./adr/0004-no-gradle-version-catalog.md).
-- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 79개,
+- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 92개,
   JUnit5 + Mockito + AssertJ; 의존성은 각 모듈 `build.gradle`의 `testImplementation`). characterization +
-  버그수정 회귀(B1·B2·B3·B4·B5·B6·B7·BT1) + 보안 회귀(E1·A1·CU1) + 동작보존 정리 회귀(R4 `GlobalExceptionHandlerTest`·R6 `AdminPriceCalculatorTest`·CU2 `JsonUtilsTest`) + 구조 리팩토링 회귀(R2 `PaymentClientTest`; R1·BT2 는 기존 테스트가 안전망) + BigDecimal 전환(ADR-0006 — 기존 금액 단언을 `isEqualByComparingTo` 로 전환[값 보존] + `MoneyUtilsTest` scale 검증 1개).
+  버그수정 회귀(B1·B2·B3·B4·B5·B6·B7·BT1) + 보안 회귀(E1·A1·CU1) + 동작보존 정리 회귀(R4 `GlobalExceptionHandlerTest`·R6 `AdminPriceCalculatorTest`·CU2 `JsonUtilsTest`) + 구조 리팩토링 회귀(R2 `PaymentClientTest`; R1·BT2 는 기존 테스트가 안전망) + BigDecimal 전환(ADR-0006 — 기존 금액 단언을 `isEqualByComparingTo` 로 전환[값 보존] + `MoneyUtilsTest` scale 검증 1개) + 공유 DB 읽기 경계(ADR-0008 — `ReadOnlyBoundaryTest`·`SharedSchemaContractTest`·batch `ConfigExternalizationTest` read-only 단언).
   실행은 `./gradlew test`, 인메모리 H2 프로파일(`test`)로 실 파일 DB와 격리된다. `core-framework` 는 순수 POJO 검증용 `PageRequestDtoTest`(B5)로 첫 테스트가 생겼다.

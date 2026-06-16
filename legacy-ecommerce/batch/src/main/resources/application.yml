@@ -11,6 +11,10 @@ spring:
     username: ${SHOP_DB_USERNAME:sa}
     password: ${SHOP_DB_PASSWORD:}
     driver-class-name: org.h2.Driver
+    hikari:
+      # batch 는 공유 shop DB 의 소유자가 아니라 '읽기 소비자'다([ADR-0008]). 커넥션을 read-only 로
+      # 선언해 의도를 드러낸다(쓰기 차단의 1차 보장은 ReadOnlyRepository 의 타입 차원 제거).
+      read-only: true
   jpa:
     hibernate:
       ddl-auto: none

@@ -11,6 +11,8 @@
 - `web-application-type: none` — REST 엔드포인트가 없다. `BatchRunner`(`CommandLineRunner`)가 진입점.
 - **자체 스키마가 없다.** ecommerce 가 만든 `legacyshopdb` 를 `ddl-auto:none` 으로 **공유**해 읽는다.
   엔티티는 ecommerce 테이블(`orders`/`inventory`/`cart`)을 일부 컬럼만 매핑한 **읽기 전용 프로젝션**(`*Row`).
+- **읽기 전용 소비자**다([ADR-0008](../docs/adr/0008-batch-read-only-shared-db-consumer.md)). 리포지토리는 `ReadOnlyRepository`(쓰기 메서드 없음)라
+  공유 DB 쓰기가 **타입 차원에서** 막히고, 커넥션은 `hikari.read-only`, 공유 read 계약은 테스트로 고정돼 있다.
 
 ## 빌드 / 실행 / 테스트
 
@@ -20,7 +22,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :batch:build      # 빌드
 .\gradlew.bat :batch:bootRun    # 잡 1회 실행 후 종료
-.\gradlew.bat :batch:test       # 테스트 — SettlementJobTest·DailySalesAggregationJobTest
+.\gradlew.bat :batch:test       # 테스트 — Settlement/DailySalesAggregationJobTest · ReadOnlyBoundaryTest · SharedSchemaContractTest · ConfigExternalizationTest
 ```
 
 > ⚠️ `:batch:bootRun` 전에 **ecommerce(:8081)가 먼저 떠서 `legacyshopdb` 스키마를 만들어야** 한다.
@@ -41,7 +43,8 @@ src/main/java/com/legacy/shop/batch/
 ├── domain/                      읽기 전용 프로젝션 엔티티 (ecommerce 테이블 매핑)
 │   └── OrderRow → orders        / InventoryRow → inventory / CartRow → cart
 │                                (주문 상태는 core-framework 공유 `OrderStatus` 사용)
-└── repository/                  JpaRepository (OrderRow/InventoryRow/CartRow)
+└── repository/                  ReadOnlyRepository (읽기 전용 — save/delete/flush 없음, [ADR-0008])
+                                 (OrderRow/InventoryRow/CartRow Repository)
 ```
 
 | 순서 | 잡 | 동작 | 읽는 테이블 |
@@ -55,8 +58,10 @@ src/main/java/com/legacy/shop/batch/
 
 ## 이 모듈에서 일할 때 주의점
 
-- **잡은 읽기 전용으로 유지한다.** 현재 모든 잡이 `findAll()` 로 읽어서 Java 에서 집계/출력만 한다(쓰기·삭제 없음).
-  공유 DB 의 소유자는 ecommerce 이므로, batch 에서 쓰기를 추가하려면 먼저 스키마 소유권·동시성(ADR-0002)을 검토한다.
+- **잡은 읽기 전용으로 유지한다 — 이제 타입으로 강제된다([ADR-0008]).** 리포지토리가 `ReadOnlyRepository`
+  라 `save`/`delete`/`flush` 가 아예 없어 공유 DB 에 쓸 수 없다. 공유 DB 의 소유자는 ecommerce 이므로,
+  batch 에서 쓰기가 꼭 필요하면 먼저 스키마 소유권·동시성([ADR-0002])을 검토한 뒤 의도적으로 메서드를 추가한다.
+  새 읽기 리포지토리도 `ReadOnlyRepository` 를 상속한다(`JpaRepository` 로 되돌리지 말 것 — `ReadOnlyBoundaryTest` 가 막는다).
 - **엔티티는 `*Row` 프로젝션 패턴**이다. 공통 컨벤션과 달리 `BaseTimeEntity` 미상속, `@GeneratedValue` 없음(`@Id` 만),
   **getter 만**(setter 없음), 필요한 컬럼만 매핑한다. 새 읽기 모델도 이 패턴을 따른다.
 - **주문 상태는 `core-framework` 의 공유 `OrderStatus`** 를 import 한다(batch 에 복제하지 말 것 — 드리프트 위험).

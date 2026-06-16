@@ -1,6 +1,6 @@
 # ADR-0002: H2 파일 DB + 이커머스·배치 공유
 
-- **상태**: Accepted · 재검토 대상
+- **상태**: Accepted · 재검토 대상 ([ADR-0008](./0008-batch-read-only-shared-db-consumer.md) 가 보완)
 - **날짜**: 2026-06-12 (사후 기록)
 - **결정자**: 원 개발팀 (복원)
 
@@ -31,5 +31,6 @@
 - (−) 파일 DB + `AUTO_SERVER` 는 동시성·확장성에 한계가 있고 운영 적합성이 낮다.
 - (−) ~~자격증명/경로가 `application.yml` 에 하드코딩되어 있다([known-issues.md](../known-issues.md) R5).~~
   → ✅ 환경변수로 외부화([ADR-0007](./0007-config-via-environment-variables.md), 2026-06-16). ecommerce·batch 가 같은 `SHOP_DB_*` 를 읽어 **이 공유 결합이 곧 분리 지점**이 되었다.
+- **경계 명시화 ✅(2026-06-16, [ADR-0008](./0008-batch-read-only-shared-db-consumer.md))**: 물리 분리에 앞서 결합의 위험을 통제하는 증분을 넣었다 — batch 리포지토리를 읽기 전용(`ReadOnlyRepository`)으로 좁혀 공유 DB 쓰기를 타입 차원에서 막고, 커넥션을 `read-only` 로 선언하고, 공유 read 계약(batch 의존 컬럼)을 `SharedSchemaContractTest` 로 고정했다. **물리 공유 구조 자체는 그대로** — 아래 재검토 트리거는 유효하다.
 - **재검토 트리거**: 다중 인스턴스 운영, 데이터량 증가, 또는 ecommerce/batch 스키마 분리가
-  필요해지는 시점. 외부 DBMS 전환 + 배치의 데이터 접근 방식 재설계를 함께 검토한다.
+  필요해지는 시점. 외부 DBMS 전환 + 배치의 데이터 접근 방식 재설계를 함께 검토한다(그때 이 ADR 을 대체하는 새 ADR 을 연다).

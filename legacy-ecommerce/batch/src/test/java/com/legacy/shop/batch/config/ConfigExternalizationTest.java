@@ -45,6 +45,14 @@ class ConfigExternalizationTest {
     }
 
     @Test
+    void datasource_isDeclaredReadOnly() throws IOException {
+        // 읽기 경계 명시화([ADR-0008]): batch 는 공유 shop DB 의 읽기 소비자 — 커넥션이 read-only 다.
+        StandardEnvironment env = envWith(Map.of());
+
+        assertThat(env.getProperty("spring.datasource.hikari.read-only", Boolean.class)).isTrue();
+    }
+
+    @Test
     void shopDb_honorsSharedShopDbEnvVar() throws IOException {
         // ecommerce 와 같은 SHOP_DB_URL 을 읽는다(공유 결합) — 주입하면 batch 도 같은 DB 를 가리킨다.
         StandardEnvironment env = envWith(Map.of(
