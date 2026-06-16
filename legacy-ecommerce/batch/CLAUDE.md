@@ -39,8 +39,8 @@ src/main/java/com/legacy/shop/batch/
 │   ├── InventoryReconciliationJob 재고 대사: 음수 재고 점검
 │   └── AbandonedCartCleanupJob  방치 장바구니 리포트 (⚠ 삭제 안 함, 건수만)
 ├── domain/                      읽기 전용 프로젝션 엔티티 (ecommerce 테이블 매핑)
-│   ├── OrderRow → orders        / InventoryRow → inventory / CartRow → cart
-│   └── OrderStatus              ⚠ ecommerce 의 enum 을 복제 (공유DB라 import 불가)
+│   └── OrderRow → orders        / InventoryRow → inventory / CartRow → cart
+│                                (주문 상태는 BT2 ✅ core-framework 공유 `OrderStatus` 사용 — batch 복제 제거)
 └── repository/                  JpaRepository (OrderRow/InventoryRow/CartRow)
 ```
 
@@ -72,11 +72,14 @@ src/main/java/com/legacy/shop/batch/
     인프라(`spring-boot-starter-test`) + `SettlementJobTest`·`DailySalesAggregationJobTest`(`ReflectionTestUtils` 로
     read-only `OrderRow` 픽스처 생성). `aggregate()` 는 테스트 관측용으로 `DailySales(count, revenue)` record 반환(여전히 읽기 전용).
     모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **BT1**.
-  - **`OrderStatus` enum 복제**: ecommerce 와 별개로 정의 → 드리프트 위험(**BT2**). 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md).
+  - **`OrderStatus` enum 복제 ✅ 수정됨(2026-06-16, BT2)**: (이전) ecommerce 와 별개로 동일 enum 을 복제 →
+    드리프트 위험(ecommerce 가 상태 추가 시 미지값에 Hibernate 예외). → **batch 복제본을 삭제하고 두 모듈이 함께
+    의존하는 `core-framework` 의 공유 `com.legacy.shop.core.domain.OrderStatus` 를 import** 한다(단일 출처화).
+    `@Enumerated(STRING)` 이름(CREATED/PAID/CANCELLED) 불변이라 DB 값·동작 보존. 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **BT2**.
 - 금액은 `double` 로 다룬다(공통 컨벤션, [ADR-0003](../docs/adr/0003-money-as-double.md)). 합산도 `double` 누적이다.
 - ⚠️ `AbandonedCartCleanupJob` 은 이름이 "cleanup" 이지만 **실제 삭제를 하지 않고 건수만 리포트**한다.
   의도된 현재 동작이다 — 무심코 삭제 로직을 추가하지 말 것(공유 DB 쓰기는 별도 검토 필요).
 
 ## 더 읽기
 
-모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(batch 항목 **BT1 ✅·BT2**·B7·C1·C2) · [`../docs/adr/`](../docs/adr/)
+모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(batch 항목 **BT1 ✅·BT2 ✅**·B7·C1·C2) · [`../docs/adr/`](../docs/adr/)

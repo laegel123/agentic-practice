@@ -1,5 +1,6 @@
 package com.legacy.shop.batch.domain;
 
+import com.legacy.shop.core.domain.OrderStatus;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;

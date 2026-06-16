@@ -10,7 +10,8 @@
   `spring-boot-starter-{web,data-jpa,validation}` + runtime `h2`.
 - **모듈 중 유일하게 JPA 스키마를 생성**한다(`ddl-auto: update`). H2 파일 DB `~/legacyshopdb` 를
   batch 모듈과 공유한다(batch 는 `ddl-auto: none` 로 읽기만).
-- 서비스 7 / 엔티티 8(+`OrderStatus` enum) / 컨트롤러 3 / 리포지토리 6 + native DAO 1.
+- 서비스 7 / 엔티티 8 / 컨트롤러 3 / 리포지토리 6 + native DAO 1. (주문 상태 `OrderStatus` enum 은
+  batch 와 공유하려 `core-framework`(`com.legacy.shop.core.domain`)로 끌어올렸다 — BT2 ✅.)
   결제만 외부(`PaymentClient` → payment `:8082`)이고 나머지 로직·영속성은 전부 자체 보유.
 - `@EnableJpaAuditing`, `@SpringBootApplication(scanBasePackages = "com.legacy.shop")` 로
   `core-framework` 의 공통 빈(`GlobalExceptionHandler` 등)을 함께 스캔한다.
@@ -23,7 +24,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :ecommerce-service:build      # 빌드
 .\gradlew.bat :ecommerce-service:bootRun     # 실행 (:8081)
-.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart[B2]·Coupon[B4]·Order·Inventory[B1]·Product[B5 페이징]) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀)
+.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart[B2]·Coupon[B4]·Order[R1 추출 안전망]·Inventory[B1]·Product[B5 페이징]) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀) + PaymentClientTest(R2 와이어 계약)
 ```
 
 > 테스트는 **현재 동작(버그 포함)을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ,
@@ -45,17 +46,17 @@ src/main/java/com/legacy/shop/ecommerce/
 │   ├── CartController            /api/carts
 │   └── OrderController           /api/orders
 ├── service/                      비즈니스 로직 (7개)
-│   ├── OrderService              주문 오케스트레이션      (⚠ God method R1)
+│   ├── OrderService              주문 오케스트레이션 7단계 (R1 ✅ private 메서드 추출)
 │   ├── CartService               장바구니                (B2 ✅ cartTotal 수량 반영 수정)
 │   ├── InventoryService          재고 reserve(차감)/confirm(검증만)/restore(복원) (B1 ✅ 이중차감 수정)
 │   ├── PricingService            소계→할인→세금→합계 → PricingResult
 │   ├── CouponService             쿠폰 검증               (B4 ✅ 만료 당일 포함 수정)
 │   ├── ProductService            상품 조회/검색/등록
 │   └── CustomerService           고객 조회/가입
-├── domain/                       JPA 엔티티 8 + OrderStatus enum (DB 스키마 소유)
+├── domain/                       JPA 엔티티 8 (DB 스키마 소유; `OrderStatus` enum 은 BT2 ✅ core-framework 로 이동)
 ├── dto/                          요청/응답 record
 ├── repository/                   Spring Data JPA 6 + ProductSearchDao (native SQL — E1 ✅ 파라미터 바인딩 수정됨)
-├── client/PaymentClient          payment 서비스 HTTP 호출 (⚠ raw Map R2; ✅ R8 타임아웃 RestTemplateConfig 에서 설정)
+├── client/PaymentClient          payment 서비스 HTTP 호출 (R2 ✅ 타입 record client/dto/*; R8 ✅ 타임아웃 RestTemplateConfig)
 └── config/                       DataSeeder(초기 시드) · RestTemplateConfig
 ```
 
@@ -96,8 +97,12 @@ src/main/java/com/legacy/shop/ecommerce/
     → **`MoneyUtils.multiply(unitPrice, quantity)` 합산**. 회귀 `CartServiceTest`(30→80 으로 단언 뒤집음).
   - **B4 — 쿠폰 off-by-one ✅ 수정됨(2026-06-16)**: (이전) 만료일 당일 거부 → **`expiryDate.isBefore(today)`** 로
     교체해 만료일 당일 포함 유효(주석과 일치). 회귀 `CouponServiceTest`(당일 거부→유효로 단언 뒤집음).
-  - **R1 — God method**: `OrderService.placeOrder` 가 재고/주문/쿠폰/가격/결제/장바구니/알림 7책임을
-    한 `@Transactional` 에서 처리. **R2 — raw Map** HTTP(`PaymentClient`), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md).
+  - **R1 — God method ✅ 수정됨(2026-06-16)**: `OrderService.placeOrder` 의 7책임을 의도가 드러나는
+    private 메서드(`reserveStock`·`buildOrder`·`applyPricing`·`pay`·`confirmStock`·`clearCart`·`notifyOrderPlaced`)로
+    추출하고 `placeOrder` 는 단계 흐름만 남겼다(동작보존 — `OrderServiceTest` 단언 무변).
+  - **R2 — raw Map HTTP ✅ 수정됨(2026-06-16)**: `PaymentClient` 요청·응답을 타입 record(`client/dto/*`)로 교체하고
+    `((Number) data.get("paymentId")).longValue()` 캐스팅을 제거했다(charge 는 `exchange(…, ParameterizedTypeReference<ApiResponse<…>>)`).
+    회귀 `PaymentClientTest`(MockRestServiceServer 와이어 계약). [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md).
 - 금액은 전사적으로 `double` 로 다루며 `MoneyUtils.round` 를 거친다(**B3 ✅ 수정으로 이제 HALF_UP 반올림**;
   근본 해결은 `BigDecimal` 전환 [ADR-0003](../docs/adr/0003-money-as-double.md)). ✅ `System.out.println`(C1)은
   `OrderService`·`DataSeeder` 모두 SLF4J 로거로 교체됨(2026-06-16). ✅ `PaymentClient` 의 `RestTemplate` 타임아웃(R8)도
@@ -106,4 +111,4 @@ src/main/java/com/legacy/shop/ecommerce/
 ## 더 읽기
 
 - 이 모듈: [`docs/architecture.md`](./docs/architecture.md) — 도메인 모델·주문 흐름 7단계·설정·시딩·테스트 루프 상세
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1 ✅·B1 ✅·B2 ✅·B4 ✅**·R1·R2·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)
+- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1 ✅·B1 ✅·B2 ✅·B4 ✅·R1 ✅·R2 ✅**·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)

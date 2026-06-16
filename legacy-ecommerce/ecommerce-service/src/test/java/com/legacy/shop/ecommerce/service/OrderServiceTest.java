@@ -6,7 +6,7 @@ import com.legacy.shop.ecommerce.client.PaymentClient;
 import com.legacy.shop.ecommerce.domain.Cart;
 import com.legacy.shop.ecommerce.domain.CartItem;
 import com.legacy.shop.ecommerce.domain.Order;
-import com.legacy.shop.ecommerce.domain.OrderStatus;
+import com.legacy.shop.core.domain.OrderStatus;
 import com.legacy.shop.ecommerce.domain.Product;
 import com.legacy.shop.ecommerce.repository.CartRepository;
 import com.legacy.shop.ecommerce.repository.OrderRepository;

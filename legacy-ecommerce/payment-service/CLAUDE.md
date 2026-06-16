@@ -99,4 +99,6 @@ src/main/java/com/legacy/shop/payment/
   [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) ·
   [`../docs/known-issues.md`](../docs/known-issues.md)(B6) · [`../docs/adr/`](../docs/adr/)(금액 [ADR-0003](../docs/adr/0003-money-as-double.md))
 - 호출자 쪽 맥락: ecommerce 의 [`../ecommerce-service/CLAUDE.md`](../ecommerce-service/CLAUDE.md)
-  (`PaymentClient` → payment `:8082`, raw Map HTTP R2·타임아웃 없음 R8).
+  (`PaymentClient` → payment `:8082`; R2 ✅ 타입 record 로 교체·R8 ✅ 타임아웃 설정 — 둘 다 2026-06-16 수정).
+  payment 의 요청 record(`ChargeRequest`/`RefundRequest`)는 ecommerce·admin 클라이언트가 보내는 와이어 계약과
+  필드가 일치해야 한다 — 호출자는 자체 `client/dto/*` record 로 같은 바디를 조립한다(공유 계약 모듈은 미도입).

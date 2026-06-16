@@ -57,8 +57,8 @@ H2 파일 DB를 쓰며, **2개의 물리 DB**가 존재한다.
 
 ## 주문 처리 흐름 (핵심 시나리오)
 
-`POST /api/orders` → `OrderService.placeOrder()` 한 메서드가 7단계를 한 트랜잭션에서 처리한다
-(이른바 "God method", [ADR 없음 — 리팩토링 대상](./known-issues.md)).
+`POST /api/orders` → `OrderService.placeOrder()` 가 7단계를 한 트랜잭션에서 처리한다. R1 ✅(2026-06-16)
+로 각 단계를 의도가 드러나는 private 메서드로 추출해 `placeOrder` 는 흐름만 남겼다(동작보존 — [known-issues.md](./known-issues.md) R1).
 
 ```
 1. 재고 확인 + 예약(차감)      InventoryService.checkStock / reserve
@@ -75,21 +75,24 @@ H2 파일 DB를 쓰며, **2개의 물리 DB**가 존재한다.
 > [known-issues.md](./known-issues.md) B1 참고.
 
 금액 계산 순서는 **소계 → 할인 → 세금 → 합계**이며, 세금은 소계 기준 10%다(`PricingService`).
-모든 금액은 `double` 로 다루고 `MoneyUtils.round()` 로 정리한다(현재 반올림이 아니라 **버림**으로 동작).
+모든 금액은 `double` 로 다루고 `MoneyUtils.round()` 로 정리한다(B3 ✅ 수정으로 이제 **HALF_UP 반올림**).
 배경은 [ADR-0003](./adr/0003-money-as-double.md).
 
 ## 서비스 간 통신
 
 ```
-admin :8083 ──RestTemplate(raw Map)──▶ ecommerce :8081   (상품/주문 조회·생성)
-            └─RestTemplate(raw Map)──▶ payment   :8082   (환불)
+admin :8083 ──RestTemplate──▶ ecommerce :8081   (상품/주문 조회·생성 — 응답은 패스스루 Map)
+            └─RestTemplate──▶ payment   :8082   (환불 — 요청은 타입 record, R2 ✅)
 
-ecommerce :8081 ─RestTemplate(raw Map)─▶ payment :8082   (결제 charge / refund)
+ecommerce :8081 ─RestTemplate─▶ payment :8082   (결제 charge/refund — 요청·응답 타입 record, R2 ✅)
 ```
 
 - HTTP 클라이언트는 `ecommerce-service` 의 `PaymentClient`, `admin` 의 `ShopGateway` 두 곳.
-- 둘 다 요청/응답을 **타입 DTO 없이 `Map` 으로 주고받는다**(`Map.class` 역직렬화 후 캐스팅).
-  배경과 리스크는 [ADR-0005](./adr/0005-map-based-inter-service-http.md).
+- ✅ **R2 수정됨(2026-06-16)**: `PaymentClient` 는 요청·응답을 타입 record 로 교체하고
+  `((Number) data.get("paymentId")).longValue()` 캐스팅을 제거했다(`exchange(…, ParameterizedTypeReference<ApiResponse<…>>)`).
+  `ShopGateway` 는 직접 조립하는 환불 요청 바디를 타입 record 로 교체했다. admin 의 조회/생성 **패스스루
+  응답은 무상태 프록시 특성상 의도적으로 `Map` 으로 유지**한다(타입화 시 도메인 중복 모델링·응답 바이트 변경).
+  회귀 `PaymentClientTest`(MockRestServiceServer). 배경·남은 과제(공유 계약 모듈)는 [ADR-0005](./adr/0005-map-based-inter-service-http.md).
 - 호출 대상 URL은 `@Value` 기본값으로 하드코딩되어 있다(`http://localhost:8081` 등).
 - 인증: `admin` API는 `X-Admin-Token` 헤더를 `AdminAuth` 가 검증한다(토큰 기본값 `admin-secret` 하드코딩).
 
@@ -131,7 +134,7 @@ Windows PowerShell 에서는 `.\gradlew.bat`, POSIX 셸(Bash 도구)에서는 `.
   `test { useJUnitPlatform() }` 를 모든 모듈에 공통 적용한다.
 - Spring Boot 플러그인은 루트에서 `apply false` 로 선언하고, 실행 앱 모듈에서만 `id 'org.springframework.boot'` 로 적용한다.
 - 버전 카탈로그(`libs.versions.toml`)는 쓰지 않는다 — 의도적 결정. [ADR-0004](./adr/0004-no-gradle-version-catalog.md).
-- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 65개,
+- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 67개,
   JUnit5 + Mockito + AssertJ; 의존성은 각 모듈 `build.gradle`의 `testImplementation`). characterization +
-  버그수정 회귀(B1·B2·B3·B4·B5·B6·B7·BT1) + 보안 회귀(E1·A1·CU1) + 동작보존 정리 회귀(R4 `GlobalExceptionHandlerTest`·R6 `AdminPriceCalculatorTest`·CU2 `JsonUtilsTest`).
+  버그수정 회귀(B1·B2·B3·B4·B5·B6·B7·BT1) + 보안 회귀(E1·A1·CU1) + 동작보존 정리 회귀(R4 `GlobalExceptionHandlerTest`·R6 `AdminPriceCalculatorTest`·CU2 `JsonUtilsTest`) + 구조 리팩토링 회귀(R2 `PaymentClientTest`; R1·BT2 는 기존 테스트가 안전망).
   실행은 `./gradlew test`, 인메모리 H2 프로파일(`test`)로 실 파일 DB와 격리된다. `core-framework` 는 순수 POJO 검증용 `PageRequestDtoTest`(B5)로 첫 테스트가 생겼다.

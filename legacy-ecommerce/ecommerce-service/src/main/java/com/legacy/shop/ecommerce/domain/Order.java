@@ -1,6 +1,7 @@
 package com.legacy.shop.ecommerce.domain;
 
 import com.legacy.shop.core.domain.BaseTimeEntity;
+import com.legacy.shop.core.domain.OrderStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

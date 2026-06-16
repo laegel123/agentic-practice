@@ -1,8 +1,8 @@
 package com.legacy.shop.batch.job;
 
 import com.legacy.shop.batch.domain.OrderRow;
-import com.legacy.shop.batch.domain.OrderStatus;
 import com.legacy.shop.batch.repository.OrderRowRepository;
+import com.legacy.shop.core.domain.OrderStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

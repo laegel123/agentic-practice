@@ -32,7 +32,7 @@ src/main/java/com/legacy/shop/admin/
 │   ├── AdminProductController   /admin/products
 │   ├── AdminOrderController     /admin/orders
 │   └── AdminRefundController    /admin/refunds
-├── client/ShopGateway           ecommerce/payment HTTP 호출 (RestTemplate + raw Map)
+├── client/ShopGateway           ecommerce/payment HTTP 호출 (R2 ✅ 환불 요청은 타입 record client/dto/PaymentRefundRequest; 조회/생성 패스스루 응답은 무상태 프록시라 Map 유지)
 ├── security/AdminAuth           X-Admin-Token 검증
 ├── util/AdminPriceCalculator    금액 미리보기 계산 (✅ R6 — MoneyUtils 위임, PricingService 와 같은 규칙)
 ├── config/RestTemplateConfig    RestTemplate 빈 (✅ R8 — connect 2s/read 5s 타임아웃)
@@ -55,7 +55,11 @@ src/main/java/com/legacy/shop/admin/
   `AdminAuth.check(token)` 로 `X-Admin-Token` 을 검사한다. 회귀 테스트 `AdminRefundControllerTest`
   (모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **A1**). admin 의 모든 보호 엔드포인트는 이 패턴을 따른다.
 - ⚠️ 아래는 모노레포 known-issues 에 등록된 안티패턴이다. **새 코드에서 모방하지 말고**, 손대는 김에 개선한다.
-  - 게이트웨이가 타입 DTO 없이 raw `Map` 으로 통신(R2) — [`../docs/known-issues.md`](../docs/known-issues.md), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md)
+  - ✅ **R2 — raw Map 통신 부분 수정됨(2026-06-16)**: admin 이 **직접 조립**하는 환불 요청 바디를 타입 record
+    (`client/dto/PaymentRefundRequest`)로 교체했다. 조회(`listProducts`/`getOrder`)·생성(`createProduct`)
+    패스스루의 **응답은 의도적으로 `Map`/`Object` 로 유지**한다 — admin 은 도메인 모델 없는 무상태 프록시라,
+    타입을 입히면 ecommerce 도메인을 중복 모델링하고 응답 바이트도 바뀐다. 향후 공유 계약 모듈로 응답까지
+    타입화 — [`../docs/known-issues.md`](../docs/known-issues.md), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md)
   - 서비스 URL·`admin.token`(`admin-secret`) 하드코딩(R5) — 운영은 환경변수/프로파일로 외부화
   - ✅ **R6 — 계산식 복붙 수정됨(2026-06-16)**: `AdminPriceCalculator` 가 ecommerce `PricingService` 계산식을
     복붙(자체 `Math.floor`)하던 것을 **공용 `MoneyUtils.taxOf`/`MoneyUtils.round`(HALF_UP) 위임**으로 교체 →
@@ -70,4 +74,4 @@ src/main/java/com/legacy/shop/admin/
 
 ## 더 읽기
 
-모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(admin 항목 **A1**·R2·R5·R6·R8) · [`../docs/adr/`](../docs/adr/)
+모노레포 공통 문서: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(admin 항목 **A1 ✅·R2 ✅(부분)·R6 ✅·R8 ✅**·R5) · [`../docs/adr/`](../docs/adr/)

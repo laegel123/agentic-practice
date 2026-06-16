@@ -1,8 +1,8 @@
 package com.legacy.shop.batch.job;
 
 import com.legacy.shop.batch.domain.OrderRow;
-import com.legacy.shop.batch.domain.OrderStatus;
 import com.legacy.shop.batch.repository.OrderRowRepository;
+import com.legacy.shop.core.domain.OrderStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

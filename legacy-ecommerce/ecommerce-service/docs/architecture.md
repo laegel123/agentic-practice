@@ -27,10 +27,10 @@ web (컨트롤러, 얇게)
 |--------|--------|------|
 | `web` | `ProductController`, `CartController`, `OrderController` | REST 엔드포인트. 얇게 유지 → 서비스 위임 + DTO 변환 |
 | `service` | `OrderService`, `CartService`, `InventoryService`, `PricingService`, `CouponService`, `ProductService`, `CustomerService` (+ `PricingResult` record) | 비즈니스 로직, 트랜잭션 경계 |
-| `domain` | `Product`, `Inventory`, `Category`, `Customer`, `Cart`, `CartItem`, `Order`, `OrderItem` (+ `OrderStatus` enum) | JPA 엔티티 = DB 스키마 |
+| `domain` | `Product`, `Inventory`, `Category`, `Customer`, `Cart`, `CartItem`, `Order`, `OrderItem` (주문 상태 `OrderStatus` enum 은 BT2 ✅ `core-framework` 로 이동) | JPA 엔티티 = DB 스키마 |
 | `dto` | 요청/응답 `record` 8종 | API 입출력 |
 | `repository` | `Product/Inventory/Category/Customer/Cart/Order/CouponRepository` + `ProductSearchDao` | 영속성. 대부분 Spring Data 파생 쿼리, 검색만 native DAO |
-| `client` | `PaymentClient` | payment 서비스 HTTP 호출 (RestTemplate, raw `Map`) |
+| `client` | `PaymentClient` (+ `client/dto/*` record) | payment 서비스 HTTP 호출 (RestTemplate; R2 ✅ 타입 record) |
 | `config` | `DataSeeder`, `RestTemplateConfig` | 초기 시드 적재, `RestTemplate` 빈 |
 | (루트) | `EcommerceApplication` | `@EnableJpaAuditing`, `scanBasePackages = "com.legacy.shop"` |
 
@@ -64,7 +64,9 @@ Product ··id··▶ Category        (FK 없음, categoryId 로만 연결)
 Coupon / Customer               (독립)
 ```
 
-`OrderStatus` enum 은 `CREATED → PAID → CANCELLED` 이며 `@Enumerated(STRING)` 로 저장한다.
+`OrderStatus` enum 은 `CREATED → PAID → CANCELLED` 이며 `@Enumerated(STRING)` 로 저장한다. 이 enum 은
+BT2 ✅ 로 batch 와 공유하기 위해 `core-framework`(`com.legacy.shop.core.domain.OrderStatus`)에 단일 정의되어
+있다(이전엔 ecommerce·batch 가 각자 복제 → 드리프트 위험).
 
 ## 엔드포인트
 
@@ -89,20 +91,19 @@ Coupon / Customer               (독립)
 
 ## 핵심 흐름 — 주문 처리 (`OrderService.placeOrder`)
 
-`POST /api/orders` 한 번이 아래 7단계를 **하나의 `@Transactional`** 에서 처리한다(⚠ God method R1).
+`POST /api/orders` 한 번이 아래 7단계를 **하나의 `@Transactional`** 에서 처리한다. R1 ✅ 로 각 단계를
+의도가 드러나는 private 메서드로 추출했고, `placeOrder` 는 이 흐름만 보여준다.
 
 ```
 OrderController.place(PlaceOrderRequest)
-  → OrderService.placeOrder(customerId, couponCode)
-     1) 장바구니 로드            cartRepository.findByCustomerId (없거나 비면 EMPTY_CART)
-     2) 재고 확인 + 예약(차감)    각 항목 checkStock → InventoryService.reserve   ◀ 1차 차감
-     3) Order/OrderItem 생성     상품 조회 → 스냅샷(productName, unitPrice, lineTotal)
-     4) 쿠폰 + 금액 계산         couponService.getValidCoupon → PricingService.calculate
-                                  → PricingResult(소계·할인·세금·합계) 를 Order 에 반영
-     5) 결제 호출(HTTP)          PaymentClient.charge(orderId, customerId, total) → payment :8082
-                                  실패 시 PAYMENT_FAILED. 성공 시 paymentId 저장 + status=PAID
-     6) 재고 확정                각 항목 InventoryService.confirm                ◀ 검증만(차감 없음, B1 ✅)
-     7) 장바구니 비우기 + 알림    cart.clear() / log.info (SLF4J — C1 ✅)
+  → OrderService.placeOrder(customerId, couponCode)   ── 아래 7단계를 private 메서드로 위임(R1 ✅)
+     1) 장바구니 로드            loadNonEmptyCart()     (없거나 비면 EMPTY_CART)
+     2) 재고 확인 + 예약(차감)    reserveStock()         각 항목 checkStock → reserve   ◀ 1차 차감
+     3) Order/OrderItem 생성     buildOrder()           상품 조회 → 스냅샷(productName, unitPrice, lineTotal)
+     4) 쿠폰 + 금액 계산         applyPricing()         getValidCoupon → PricingService.calculate → PricingResult 반영
+     5) 결제 호출(HTTP)          pay()                  PaymentClient.charge(...) → payment :8082; 성공 시 paymentId + status=PAID
+     6) 재고 확정                confirmStock()         각 항목 confirm                ◀ 검증만(차감 없음, B1 ✅)
+     7) 장바구니 비우기 + 알림    clearCart() / notifyOrderPlaced()   cart.clear() / log.info (SLF4J — C1 ✅)
   → ApiResponse.success(OrderResponse)
 ```
 
@@ -110,12 +111,13 @@ OrderController.place(PlaceOrderRequest)
 `quantity - qty` 를 수행해(별도 "예약" 상태가 없음) 주문 1건당 재고가 2배로 빠졌다. → **`confirm()` 은
 더 이상 차감하지 않고 재고 레코드 존재만 검증**한다. 차감은 2단계 `reserve()` 에서 1회만 일어난다.
 회귀 테스트는 `InventoryServiceTest`(reserve→confirm 단일차감).
-⚠️ **God method(R1)**: 재고·주문·쿠폰·가격·결제·장바구니·알림이 한 메서드/한 트랜잭션에 묶여 있어
-결제(외부 HTTP)가 트랜잭션 안에서 호출되고, 재고 복원(`restore`)·보상 로직도 빠져 있다.
+✅ **God method 추출됨(R1, 2026-06-16)**: 7책임을 위 private 메서드들로 분리해 `placeOrder` 는 단계 흐름만
+남겼다(동작보존 — `OrderServiceTest` 단언 무변). 다만 구조 개선과 **별개로**, 결제(외부 HTTP)가 트랜잭션
+안에서 호출되고 재고 복원(`restore`)·보상 로직이 없는 점은 그대로다 — 트랜잭션 경계/사가(saga) 설계 과제로 남는다.
 
 가격 계산은 `PricingService.calculate(items, coupon)` 가 담당한다: `소계 = Σ(unitPrice×quantity)`,
 `할인 = round(소계 × discountRate)`(쿠폰 있고 `소계 ≥ minOrderAmount` 일 때), `세금 = round(소계 × TAX_RATE)`,
-`합계 = round(소계 + 세금 − 할인)`. 모든 금액이 `MoneyUtils.round`(현재 **버림** = B3)를 거친다.
+`합계 = round(소계 + 세금 − 할인)`. 모든 금액이 `MoneyUtils.round`(B3 ✅ 수정으로 **HALF_UP 반올림**)를 거친다.
 
 ## 서비스 간 통신
 
@@ -123,14 +125,17 @@ OrderController.place(PlaceOrderRequest)
 
 ```
 PaymentClient.charge(orderId, customerId, amount)
-  → req = HashMap{orderId, customerId, amount}                  (타입 DTO 아님 — raw Map, R2)
-  → RestTemplate.postForObject(paymentBaseUrl + "/api/payments/charge", req, Map.class)
-  → resp.get("data").get("paymentId") 캐스팅 → Long             (계약이 코드에 안 드러남)
-PaymentClient.refund(paymentId, amount)  → POST /api/payments/refund
+  → req = PaymentChargeRequest(orderId, customerId, amount)     (타입 record — R2 ✅)
+  → RestTemplate.exchange(paymentBaseUrl + "/api/payments/charge", POST,
+                          HttpEntity(req), ParameterizedTypeReference<ApiResponse<PaymentChargeResponse>>)
+  → resp.getData().paymentId()  → Long                          (캐스팅 제거; 계약이 record 로 드러남)
+PaymentClient.refund(paymentId, amount)  → PaymentRefundRequest 로 POST /api/payments/refund
 ```
 
-⚠️ raw `Map` 통신(R2, [ADR-0005](../../docs/adr/0005-map-based-inter-service-http.md)),
-`@Value` 로 주입한 하드코딩 URL(R5)이 걸려 있다. (`RestTemplateConfig` 타임아웃 미설정 R8 은 ✅ 수정됨 — connect 2s/read 5s.)
+✅ **raw `Map` 통신(R2) 수정됨(2026-06-16)**: 요청·응답을 타입 record(`client/dto/*`)로 교체하고
+`((Number) data.get("paymentId")).longValue()` 캐스팅을 제거했다([ADR-0005](../../docs/adr/0005-map-based-inter-service-http.md)).
+회귀 `PaymentClientTest`(MockRestServiceServer 와이어 계약). `@Value` 하드코딩 URL(R5)은 그대로다.
+(`RestTemplateConfig` 타임아웃 미설정 R8 도 ✅ 수정됨 — connect 2s/read 5s.)
 
 ## 설정 (`src/main/resources/application.yml`)
 
@@ -178,18 +183,21 @@ payment:
 | `service/CouponServiceTest` | `CouponService.getValidCoupon` | **B4 ✅ 회귀**: 만료일 **당일 유효**(이전 거부), 익일 유효/전일 만료/미존재/빈 코드 |
 | `service/PricingServiceTest` | `PricingService.calculate` | 소계=Σ(단가×수량), 세금 10%, 쿠폰 최소주문 조건, `round`(B3 ✅ 이제 HALF_UP — 이 시나리오들은 정확히 떨어져 값 불변) |
 | `service/ProductServiceTest` | `ProductService.list` (Mockito) | **B5 ✅ 회귀**: 1-based 첫 페이지가 P1~P5 반환(이전엔 P6~P10 로 건너뜀), 둘째 페이지 P6~P10, 범위 밖 빈 결과 |
+| `client/PaymentClientTest` | `PaymentClient.charge/refund` (MockRestServiceServer) | **R2 ✅ 회귀**: charge 요청 바디 `{orderId,customerId,amount}`(method 미포함)·`ApiResponse.data.paymentId` 추출(나머지 필드 무시), refund 요청 바디 `{paymentId,amount}` |
 | `EcommerceApplicationTests` | 스프링 컨텍스트 | 전체 빈 배선 스모크(`@ActiveProfiles("test")`) |
 
 테스트는 **인메모리 H2 프로파일**(`src/test/resources/application-test.yml` — `jdbc:h2:mem:testdb`,
 `ddl-auto: create-drop`)로 돌아 운영 파일 DB(`~/legacyshopdb`)를 건드리지 않는다. 단위 테스트는
 순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표 중 `InventoryServiceTest`(5개)는 B1, `CartServiceTest`·
 `CouponServiceTest` 는 B2·B4 수정의 회귀이고(단언을 같은 커밋에서 뒤집음), `ProductServiceTest`(3개)는 B5 페이징
-회귀이며, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다.
-모노레포 전체는 **65개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
+회귀이며, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)와
+`client/PaymentClientTest`(R2 와이어 계약 회귀, MockRestServiceServer 2개)를 둔다.
+모노레포 전체는 **67개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
 `SettlementJobTest`·`DailySalesAggregationJobTest` 5 + B5 core-framework `PageRequestDtoTest` 4·ecommerce `ProductServiceTest` 3;
 B2·B3·B4·B6 는 기존 characterization 단언을 뒤집어 흡수) + 보안 회귀 12(E1 `ProductSearchDaoTest` 3 +
 admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6) + 동작보존 정리 회귀 8(R4 core-framework
-`GlobalExceptionHandlerTest` 2 + R6 admin `AdminPriceCalculatorTest` 3 + CU2 common-util `JsonUtilsTest` 3).
+`GlobalExceptionHandlerTest` 2 + R6 admin `AdminPriceCalculatorTest` 3 + CU2 common-util `JsonUtilsTest` 3) +
+구조 리팩토링 회귀 2(R2 ecommerce `PaymentClientTest` 2; R1·BT2 는 기존 테스트가 안전망).
 
 ## 의존성 / 기동 순서
 

@@ -1,7 +1,7 @@
 package com.legacy.shop.ecommerce.repository;
 
+import com.legacy.shop.core.domain.OrderStatus;
 import com.legacy.shop.ecommerce.domain.Order;
-import com.legacy.shop.ecommerce.domain.OrderStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
