@@ -1,10 +1,12 @@
 package com.legacy.shop.ecommerce.dto;
 
+import java.math.BigDecimal;
+
 public record OrderItemResponse(
         Long productId,
         String productName,
-        double unitPrice,
+        BigDecimal unitPrice,
         int quantity,
-        double lineTotal
+        BigDecimal lineTotal
 ) {
 }

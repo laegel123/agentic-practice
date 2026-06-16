@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 
@@ -34,13 +35,13 @@ public class DailySalesAggregationJob {
     public DailySales aggregate() {
         LocalDate today = LocalDate.now(clock);   // 주문 시각(UTC)과 같은 기준(UTC)의 오늘 (B7)
         int count = 0;
-        double sum = 0;
+        BigDecimal sum = BigDecimal.ZERO;
         for (OrderRow o : orderRowRepository.findAll()) {
             if (o.getStatus() != OrderStatus.CANCELLED            // 취소 주문은 매출 집계에서 제외 (BT1)
                     && o.getOrderedAt() != null
                     && o.getOrderedAt().toLocalDate().equals(today)) {
                 count++;
-                sum += o.getTotalAmount();
+                sum = sum.add(o.getTotalAmount());
             }
         }
         log.info("[집계] 오늘 주문수={}, 매출={}", count, sum);
@@ -48,6 +49,6 @@ public class DailySalesAggregationJob {
     }
 
     /** 일일 집계 결과(건수, 매출). */
-    public record DailySales(int count, double revenue) {
+    public record DailySales(int count, BigDecimal revenue) {
     }
 }

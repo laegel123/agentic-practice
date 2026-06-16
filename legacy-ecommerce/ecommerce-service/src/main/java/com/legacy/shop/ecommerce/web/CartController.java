@@ -1,5 +1,6 @@
 package com.legacy.shop.ecommerce.web;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.web.ApiResponse;
 import com.legacy.shop.ecommerce.domain.Cart;
 import com.legacy.shop.ecommerce.domain.CartItem;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -43,12 +45,12 @@ public class CartController {
         List<CartItemResponse> items = cart.getItems().stream()
                 .map(this::toItemDto)
                 .toList();
-        double total = cartService.cartTotal(cart);
+        BigDecimal total = cartService.cartTotal(cart);
         return new CartResponse(cart.getId(), cart.getCustomerId(), items, total);
     }
 
     private CartItemResponse toItemDto(CartItem ci) {
         return new CartItemResponse(ci.getProductId(), ci.getQuantity(), ci.getUnitPrice(),
-                ci.getUnitPrice() * ci.getQuantity());
+                MoneyUtils.multiply(ci.getUnitPrice(), ci.getQuantity()));
     }
 }

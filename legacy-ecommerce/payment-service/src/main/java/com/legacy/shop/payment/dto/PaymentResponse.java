@@ -1,10 +1,12 @@
 package com.legacy.shop.payment.dto;
 
+import java.math.BigDecimal;
+
 public record PaymentResponse(
         Long paymentId,
         Long orderId,
         Long customerId,
-        double amount,
+        BigDecimal amount,
         String status,
         String method
 ) {

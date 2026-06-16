@@ -1,6 +1,8 @@
 package com.legacy.shop.payment.domain;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.domain.BaseTimeEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -8,6 +10,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "ledger")
@@ -22,7 +26,8 @@ public class Ledger extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private LedgerType type;
 
-    private double amount;
+    @Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)
+    private BigDecimal amount;
 
     public Long getId() {
         return id;
@@ -44,11 +49,11 @@ public class Ledger extends BaseTimeEntity {
         this.type = type;
     }
 
-    public double getAmount() {
+    public BigDecimal getAmount() {
         return amount;
     }
 
-    public void setAmount(double amount) {
+    public void setAmount(BigDecimal amount) {
         this.amount = amount;
     }
 }

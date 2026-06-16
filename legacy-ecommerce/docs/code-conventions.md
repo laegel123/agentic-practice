@@ -57,7 +57,7 @@ public class CouponService {
 - enum 필드는 `@Enumerated(EnumType.STRING)` 으로 저장한다(`Order.status` 참고).
 - 테이블명이 예약어와 겹치면 `@Table(name = "orders")` 처럼 명시한다.
 - ⚠️ **연관관계 대신 ID 참조**: `Product.categoryId` 처럼 FK 연관(`@ManyToOne`)을 맺지 않고 `Long` id만 들고 있는 경우가 많다. 참조 무결성 보장이 없다.
-- ⚠️ **금액은 `double`**: `price`, `subtotal`, `amount` 등 모든 돈을 `double` 로 저장/계산한다. 정밀도 문제가 있다. [ADR-0003](./adr/0003-money-as-double.md).
+- ✅ **금액은 `BigDecimal`**: `price`, `subtotal`, `amount` 등 모든 돈을 `BigDecimal`(scale 2/HALF_UP)로 저장/계산한다 — 엔티티 컬럼은 `@Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)`(정책 상수를 직접 참조해 scale 이 코드·스키마·포맷에서 따로 박히는 drift 를 막는다). 비교는 `compareTo`/`isEqualByComparingTo`(scale 민감 `equals` 금지 — Mockito 도 `eq(BigDecimal)` 대신 `argThat(... compareTo ... == 0)`), 새 금액 계산·포맷은 `MoneyUtils` 를 거친다. **비율(할인율 등)은 *금액*이 아니라 `double` 유지.** ([ADR-0006](./adr/0006-money-as-bigdecimal.md) — 이전 `double` [ADR-0003](./adr/0003-money-as-double.md)을 대체.)
 
 ## DTO 규칙
 

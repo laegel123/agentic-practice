@@ -1,5 +1,6 @@
 package com.legacy.shop.ecommerce.service;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.error.BusinessException;
 import com.legacy.shop.core.error.ErrorCode;
 import com.legacy.shop.core.web.PageRequestDto;
@@ -60,7 +61,9 @@ public class ProductService {
     public Product create(CreateProductRequest req) {
         Product p = new Product();
         p.setName(req.name());
-        p.setPrice(req.price());
+        // 입력 단가를 정책 scale(2)로 정규화한다 — 같은 트랜잭션 내 lineTotal=multiply(price,n) 계산값이
+        // 컬럼(DECIMAL(19,2))에 잘려 저장된 reload 값과 어긋나지 않도록([ADR-0006]). null 은 종전대로 통과.
+        p.setPrice(req.price() == null ? null : MoneyUtils.round(req.price()));
         p.setCategoryId(req.categoryId());
         p.setDescription(req.description());
         p.setActive(true);

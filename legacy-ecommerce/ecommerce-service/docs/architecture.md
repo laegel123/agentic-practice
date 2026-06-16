@@ -46,7 +46,7 @@ web (컨트롤러, 얇게)
 
 | 엔티티 | 테이블 | 핵심 필드 | 관계 |
 |--------|--------|----------|------|
-| `Product` | `product` | `name`, `price`(double), `categoryId`(Long, FK 없음), `description`, `active` | — |
+| `Product` | `product` | `name`, `price`(`BigDecimal`, scale 2 — ADR-0006), `categoryId`(Long, FK 없음), `description`, `active` | — |
 | `Inventory` | `inventory` | `productId`(Long), `quantity`(int) | Product 와 id 로만 연결 |
 | `Category` | `category` | `name` | — |
 | `Customer` | `customer` | `email`, `name`, `phone`, `password`(MD5·무 salt, ⚠ CU1) | — |
@@ -118,6 +118,7 @@ OrderController.place(PlaceOrderRequest)
 가격 계산은 `PricingService.calculate(items, coupon)` 가 담당한다: `소계 = Σ(unitPrice×quantity)`,
 `할인 = round(소계 × discountRate)`(쿠폰 있고 `소계 ≥ minOrderAmount` 일 때), `세금 = round(소계 × TAX_RATE)`,
 `합계 = round(소계 + 세금 − 할인)`. 모든 금액이 `MoneyUtils.round`(B3 ✅ 수정으로 **HALF_UP 반올림**)를 거친다.
+금액 타입은 ✅ **`BigDecimal`(scale 2)** 이다(2026-06-16 `double`→`BigDecimal` 전환 — [ADR-0006](../../docs/adr/0006-money-as-bigdecimal.md)); 위 산식의 값은 종전과 동일하고 표현만 정밀해졌다.
 
 ## 서비스 간 통신
 
@@ -192,14 +193,15 @@ payment:
 `CouponServiceTest` 는 B2·B4 수정의 회귀이고(단언을 같은 커밋에서 뒤집음), `ProductServiceTest`(3개)는 B5 페이징
 회귀이며, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)와
 `client/PaymentClientTest`(R2 와이어 계약 회귀, MockRestServiceServer 2개)를 둔다.
-모노레포 전체는 **77개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
+모노레포 전체는 **79개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
 `SettlementJobTest`·`DailySalesAggregationJobTest` 5 + B5 core-framework `PageRequestDtoTest` 4·ecommerce `ProductServiceTest` 3;
 B2·B3·B4·B6 는 기존 characterization 단언을 뒤집어 흡수) + 보안 회귀 12(E1 `ProductSearchDaoTest` 3 +
 admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6) + 동작보존 정리 회귀 8(R4 core-framework
 `GlobalExceptionHandlerTest` 2 + R6 admin `AdminPriceCalculatorTest` 3 + CU2 common-util `JsonUtilsTest` 3) +
 구조 리팩토링 회귀 2(R2 ecommerce `PaymentClientTest` 2; R1·BT2 는 기존 테스트가 안전망) +
 리뷰 후속 보강 10(B5 page≤0 클램프 `PageRequestDtoTest`+2·`ProductServiceTest`+2 + A1 후속 admin `AdminAuthTest` 3 +
-B6 후속 음수환불 `RefundServiceTest`+2 + CU1 후속 `CryptoUtilsTest` hashPassword null +1).
+B6 후속 음수환불 `RefundServiceTest`+2 + CU1 후속 `CryptoUtilsTest` hashPassword null +1) +
+BigDecimal 전환 회귀(ADR-0006 — 금액 단언을 `isEqualByComparingTo` 로 전환[값 보존] + `MoneyUtilsTest` scale 2 검증 1개 추가).
 
 ## 의존성 / 기동 순서
 

@@ -1,9 +1,11 @@
 package com.legacy.shop.payment.dto;
 
+import java.math.BigDecimal;
+
 public record RefundResponse(
         Long refundId,
         Long paymentId,
-        double amount,
+        BigDecimal amount,
         String paymentStatus
 ) {
 }

@@ -25,6 +25,7 @@
 | [0000](./0000-record-architecture-decisions.md) | ADR로 아키텍처 결정을 기록한다 | Accepted |
 | [0001](./0001-multi-module-monolith.md) | 멀티모듈 모놀리스 구조 | Accepted |
 | [0002](./0002-shared-h2-file-database.md) | H2 파일 DB + 이커머스·배치 공유 | Accepted · 재검토 대상 |
-| [0003](./0003-money-as-double.md) | 금액을 `double` 로 표현 | Accepted · 재검토 대상 |
+| [0003](./0003-money-as-double.md) | 금액을 `double` 로 표현 | Superseded by 0006 |
 | [0004](./0004-no-gradle-version-catalog.md) | Gradle 버전 카탈로그 미사용 | Accepted |
 | [0005](./0005-map-based-inter-service-http.md) | 서비스 간 HTTP를 raw Map으로 통신 | Accepted · 재검토 대상 |
+| [0006](./0006-money-as-bigdecimal.md) | 금액을 `BigDecimal` 로 전환 | Accepted (0003 대체) |

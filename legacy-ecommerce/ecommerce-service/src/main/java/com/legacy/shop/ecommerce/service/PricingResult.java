@@ -1,9 +1,11 @@
 package com.legacy.shop.ecommerce.service;
 
+import java.math.BigDecimal;
+
 public record PricingResult(
-        double subtotal,
-        double discountAmount,
-        double tax,
-        double total
+        BigDecimal subtotal,
+        BigDecimal discountAmount,
+        BigDecimal tax,
+        BigDecimal total
 ) {
 }

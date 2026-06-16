@@ -18,12 +18,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -60,7 +60,7 @@ class OrderServiceTest {
     private Cart cartWithOneItem(int qty) {
         Cart cart = new Cart();
         cart.setCustomerId(CUSTOMER_ID);
-        cart.addItem(new CartItem(PRODUCT_ID, qty, 100.0));
+        cart.addItem(new CartItem(PRODUCT_ID, qty, new BigDecimal("100.0")));
         return cart;
     }
 
@@ -68,7 +68,7 @@ class OrderServiceTest {
         Product p = new Product();
         ReflectionTestUtils.setField(p, "id", PRODUCT_ID); // Product 에는 setId 가 없어 리플렉션으로 주입
         p.setName("상품");
-        p.setPrice(100.0);
+        p.setPrice(new BigDecimal("100.0"));
         return p;
     }
 
@@ -78,9 +78,10 @@ class OrderServiceTest {
         when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cart));
         when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product()));
         when(pricingService.calculate(anyList(), nullable(com.legacy.shop.ecommerce.domain.Coupon.class)))
-                .thenReturn(new PricingResult(200.0, 0.0, 20.0, 220.0));
+                .thenReturn(new PricingResult(new BigDecimal("200.0"), BigDecimal.ZERO,
+                        new BigDecimal("20.0"), new BigDecimal("220.0")));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentClient.charge(any(), any(), anyDouble())).thenReturn(999L);
+        when(paymentClient.charge(any(), any(), any())).thenReturn(999L);
 
         Order order = orderService.placeOrder(CUSTOMER_ID, null);
 
@@ -91,7 +92,7 @@ class OrderServiceTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(order.getPaymentId()).isEqualTo(999L);
-        assertThat(order.getTotalAmount()).isEqualTo(220.0);
+        assertThat(order.getTotalAmount()).isEqualByComparingTo("220.0");
         assertThat(cart.getItems()).isEmpty(); // 성공 시 장바구니 비움
     }
 
@@ -123,9 +124,10 @@ class OrderServiceTest {
         when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cart));
         when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product()));
         when(pricingService.calculate(anyList(), nullable(com.legacy.shop.ecommerce.domain.Coupon.class)))
-                .thenReturn(new PricingResult(200.0, 0.0, 20.0, 220.0));
+                .thenReturn(new PricingResult(new BigDecimal("200.0"), BigDecimal.ZERO,
+                        new BigDecimal("20.0"), new BigDecimal("220.0")));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentClient.charge(any(), any(), anyDouble())).thenThrow(new RuntimeException("결제 게이트웨이 오류"));
+        when(paymentClient.charge(any(), any(), any())).thenThrow(new RuntimeException("결제 게이트웨이 오류"));
 
         BusinessException ex = catchThrowableOfType(BusinessException.class,
                 () -> orderService.placeOrder(CUSTOMER_ID, null));

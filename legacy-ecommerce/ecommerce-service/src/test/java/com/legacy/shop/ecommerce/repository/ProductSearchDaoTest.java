@@ -10,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +47,7 @@ class ProductSearchDaoTest {
     private void persist(String name, boolean active) {
         Product p = new Product();
         p.setName(name);
-        p.setPrice(1000.0);
+        p.setPrice(new BigDecimal("1000.0"));
         p.setCategoryId(1L);
         p.setDescription("d");
         p.setActive(active);

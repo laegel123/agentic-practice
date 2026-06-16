@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 /**
@@ -43,7 +44,7 @@ public class ShopGateway {
         return restTemplate.getForObject(ecommerceUrl + "/api/orders/" + id, Map.class);
     }
 
-    public Object refund(Long paymentId, double amount, String reason) {
+    public Object refund(Long paymentId, BigDecimal amount, String reason) {
         PaymentRefundRequest req = new PaymentRefundRequest(paymentId, amount, reason);
         return restTemplate.postForObject(paymentUrl + "/api/payments/refund", req, Map.class);
     }

@@ -1,11 +1,15 @@
 package com.legacy.shop.ecommerce.domain;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.domain.BaseTimeEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "cart_item")
@@ -19,12 +23,13 @@ public class CartItem extends BaseTimeEntity {
 
     private int quantity;
 
-    private double unitPrice;
+    @Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)
+    private BigDecimal unitPrice;
 
     public CartItem() {
     }
 
-    public CartItem(Long productId, int quantity, double unitPrice) {
+    public CartItem(Long productId, int quantity, BigDecimal unitPrice) {
         this.productId = productId;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
@@ -50,11 +55,11 @@ public class CartItem extends BaseTimeEntity {
         this.quantity = quantity;
     }
 
-    public double getUnitPrice() {
+    public BigDecimal getUnitPrice() {
         return unitPrice;
     }
 
-    public void setUnitPrice(double unitPrice) {
+    public void setUnitPrice(BigDecimal unitPrice) {
         this.unitPrice = unitPrice;
     }
 }

@@ -11,6 +11,8 @@ import com.legacy.shop.ecommerce.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 /**
  * 장바구니.
  */
@@ -49,10 +51,10 @@ public class CartService {
     }
 
     /** 장바구니 합계 (요약 화면 표시용). 품목별 단가 × 수량의 합. */
-    public double cartTotal(Cart cart) {
-        double total = 0;
+    public BigDecimal cartTotal(Cart cart) {
+        BigDecimal total = BigDecimal.ZERO;
         for (CartItem it : cart.getItems()) {
-            total += MoneyUtils.multiply(it.getUnitPrice(), it.getQuantity());
+            total = total.add(MoneyUtils.multiply(it.getUnitPrice(), it.getQuantity()));
         }
         return total;
     }

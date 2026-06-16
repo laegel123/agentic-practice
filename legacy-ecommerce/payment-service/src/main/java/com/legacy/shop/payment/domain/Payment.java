@@ -1,6 +1,8 @@
 package com.legacy.shop.payment.domain;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.domain.BaseTimeEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -9,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,7 +26,8 @@ public class Payment extends BaseTimeEntity {
 
     private Long customerId;
 
-    private double amount;
+    @Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)
+    private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
     private PaymentStatus status = PaymentStatus.APPROVED;
@@ -52,11 +56,11 @@ public class Payment extends BaseTimeEntity {
         this.customerId = customerId;
     }
 
-    public double getAmount() {
+    public BigDecimal getAmount() {
         return amount;
     }
 
-    public void setAmount(double amount) {
+    public void setAmount(BigDecimal amount) {
         this.amount = amount;
     }
 

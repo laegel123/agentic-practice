@@ -4,6 +4,7 @@ import com.legacy.shop.admin.client.ShopGateway;
 import com.legacy.shop.admin.security.AdminAuth;
 import com.legacy.shop.core.web.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -12,10 +13,11 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -56,7 +58,7 @@ class AdminRefundControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("U002"));
 
-        verify(gateway, never()).refund(any(), anyDouble(), any());
+        verify(gateway, never()).refund(any(), any(), any());
     }
 
     @Test
@@ -68,12 +70,15 @@ class AdminRefundControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("U002"));
 
-        verify(gateway, never()).refund(any(), anyDouble(), any());
+        verify(gateway, never()).refund(any(), any(), any());
     }
 
     @Test
     void refund_withValidToken_succeeds_andDelegatesToGateway() throws Exception {
-        when(gateway.refund(eq(1L), eq(1000.0), eq("고객 변심")))
+        // 금액은 scale 민감한 eq(BigDecimal)(=.equals) 대신 값 비교(compareTo)로 매칭한다 —
+        // 바디 리터럴(1000.0)이 1000.00 으로 바뀌어 역직렬화 scale 이 달라져도 값이 같으면 통과해야 한다
+        // (code-conventions.md "scale 민감 equals 금지", ADR-0006 §5).
+        when(gateway.refund(eq(1L), argThat(amountEquals("1000.0")), eq("고객 변심")))
                 .thenReturn(Map.of("status", "REFUNDED"));
 
         mockMvc.perform(post("/admin/refunds")
@@ -84,6 +89,12 @@ class AdminRefundControllerTest {
                 .andExpect(jsonPath("$.code").value("0000"))
                 .andExpect(jsonPath("$.data.status").value("REFUNDED"));
 
-        verify(gateway).refund(eq(1L), eq(1000.0), eq("고객 변심"));
+        verify(gateway).refund(eq(1L), argThat(amountEquals("1000.0")), eq("고객 변심"));
+    }
+
+    /** scale 무관 금액 매처: 값이 같으면(compareTo == 0) 매칭한다. */
+    private static ArgumentMatcher<BigDecimal> amountEquals(String expected) {
+        BigDecimal target = new BigDecimal(expected);
+        return actual -> actual != null && actual.compareTo(target) == 0;
     }
 }

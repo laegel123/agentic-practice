@@ -3,6 +3,8 @@ package com.legacy.shop.admin.util;
 import com.legacy.shop.common.util.MoneyUtils;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 /**
  * 어드민 화면용 금액 계산기.
  *
@@ -11,12 +13,13 @@ import org.springframework.stereotype.Component;
  * (R6) 이전에는 PricingService 계산식을 복붙한 뒤 자체 {@code Math.floor} 로 버림 처리해,
  * MoneyUtils.round 가 HALF_UP 반올림으로 바뀐(B3) 뒤로 미리보기(admin)와 실제 주문(ecommerce)이
  * 같은 금액에도 ±0.01 어긋날 수 있었다. 이제 둘 다 MoneyUtils 를 거치므로 결과가 일치한다.
+ * 금액은 {@link BigDecimal} 이다([ADR-0006]).
  */
 @Component
 public class AdminPriceCalculator {
 
-    public double calcTotal(double subtotal, double discount) {
-        double tax = MoneyUtils.taxOf(subtotal);
-        return MoneyUtils.round(subtotal + tax - discount);
+    public BigDecimal calcTotal(BigDecimal subtotal, BigDecimal discount) {
+        BigDecimal tax = MoneyUtils.taxOf(subtotal);
+        return MoneyUtils.round(subtotal.add(tax).subtract(discount));
     }
 }

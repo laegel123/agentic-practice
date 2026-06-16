@@ -1,11 +1,15 @@
 package com.legacy.shop.ecommerce.domain;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.domain.BaseTimeEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "order_item")
@@ -19,11 +23,13 @@ public class OrderItem extends BaseTimeEntity {
 
     private String productName;
 
-    private double unitPrice;
+    @Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)
+    private BigDecimal unitPrice;
 
     private int quantity;
 
-    private double lineTotal;
+    @Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)
+    private BigDecimal lineTotal;
 
     public Long getId() {
         return id;
@@ -45,11 +51,11 @@ public class OrderItem extends BaseTimeEntity {
         this.productName = productName;
     }
 
-    public double getUnitPrice() {
+    public BigDecimal getUnitPrice() {
         return unitPrice;
     }
 
-    public void setUnitPrice(double unitPrice) {
+    public void setUnitPrice(BigDecimal unitPrice) {
         this.unitPrice = unitPrice;
     }
 
@@ -61,11 +67,11 @@ public class OrderItem extends BaseTimeEntity {
         this.quantity = quantity;
     }
 
-    public double getLineTotal() {
+    public BigDecimal getLineTotal() {
         return lineTotal;
     }
 
-    public void setLineTotal(double lineTotal) {
+    public void setLineTotal(BigDecimal lineTotal) {
         this.lineTotal = lineTotal;
     }
 }

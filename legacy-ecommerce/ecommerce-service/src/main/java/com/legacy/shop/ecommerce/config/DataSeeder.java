@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -87,14 +88,14 @@ public class DataSeeder implements CommandLineRunner {
         save20.setCode("SAVE20");
         save20.setDiscountRate(0.2);
         save20.setExpiryDate(LocalDate.now().plusYears(1));
-        save20.setMinOrderAmount(0);
+        save20.setMinOrderAmount(BigDecimal.ZERO);
         couponRepository.save(save20);
 
         Coupon welcome = new Coupon();
         welcome.setCode("WELCOME");
         welcome.setDiscountRate(0.1);
         welcome.setExpiryDate(LocalDate.now()); // 오늘까지 유효한 쿠폰
-        welcome.setMinOrderAmount(0);
+        welcome.setMinOrderAmount(BigDecimal.ZERO);
         couponRepository.save(welcome);
 
         // 정산/집계 배치 확인용 이력 주문 (결제완료 2건 + 취소 1건)
@@ -106,12 +107,13 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedOrder(Long customerId, double total, OrderStatus status) {
+        BigDecimal totalAmount = BigDecimal.valueOf(total);
         Order o = new Order();
         o.setCustomerId(customerId);
-        o.setSubtotal(total);
-        o.setDiscountAmount(0);
-        o.setTax(0);
-        o.setTotalAmount(total);
+        o.setSubtotal(totalAmount);
+        o.setDiscountAmount(BigDecimal.ZERO);
+        o.setTax(BigDecimal.ZERO);
+        o.setTotalAmount(totalAmount);
         o.setStatus(status);
         o.setOrderedAt(DateUtils.now());
         orderRepository.save(o);
@@ -126,7 +128,7 @@ public class DataSeeder implements CommandLineRunner {
     private void newProduct(String name, double price, Long categoryId, int stock) {
         Product p = new Product();
         p.setName(name);
-        p.setPrice(price);
+        p.setPrice(BigDecimal.valueOf(price));   // valueOf 는 Double.toString 기반이라 29.99 등을 무손실 변환
         p.setCategoryId(categoryId);
         p.setDescription(name + " 입니다.");
         p.setActive(true);

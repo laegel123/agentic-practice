@@ -4,6 +4,7 @@ import com.legacy.shop.admin.client.ShopGateway;
 import com.legacy.shop.admin.security.AdminAuth;
 import com.legacy.shop.admin.util.AdminPriceCalculator;
 import com.legacy.shop.core.web.ApiResponse;
+import java.math.BigDecimal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -34,9 +35,9 @@ public class AdminOrderController {
 
     /** 금액 미리보기 (어드민 화면에서 합계 재계산용). */
     @GetMapping("/preview-total")
-    public ApiResponse<Double> previewTotal(@RequestHeader(value = "X-Admin-Token", required = false) String token,
-                                            @RequestParam double subtotal,
-                                            @RequestParam(defaultValue = "0") double discount) {
+    public ApiResponse<BigDecimal> previewTotal(@RequestHeader(value = "X-Admin-Token", required = false) String token,
+                                                @RequestParam BigDecimal subtotal,
+                                                @RequestParam(defaultValue = "0") BigDecimal discount) {
         adminAuth.check(token);
         return ApiResponse.success(priceCalculator.calcTotal(subtotal, discount));
     }

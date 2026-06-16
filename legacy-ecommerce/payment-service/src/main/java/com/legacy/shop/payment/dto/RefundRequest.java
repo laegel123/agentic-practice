@@ -1,8 +1,10 @@
 package com.legacy.shop.payment.dto;
 
+import java.math.BigDecimal;
+
 public record RefundRequest(
         Long paymentId,
-        double amount,
+        BigDecimal amount,
         String reason
 ) {
 }

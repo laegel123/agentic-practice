@@ -13,8 +13,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,26 +35,26 @@ class PaymentServiceTest {
     void charge_savesApprovedPayment_andChargeLedger() {
         when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Payment p = paymentService.charge(1L, 2L, 100.0, "CARD");
+        Payment p = paymentService.charge(1L, 2L, new BigDecimal("100.0"), "CARD");
 
         assertThat(p.getStatus()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(p.getOrderId()).isEqualTo(1L);
         assertThat(p.getCustomerId()).isEqualTo(2L);
-        assertThat(p.getAmount()).isCloseTo(100.0, within(1e-9));
+        assertThat(p.getAmount()).isEqualByComparingTo("100.0");
         assertThat(p.getMethod()).isEqualTo("CARD");
         assertThat(p.getApprovedAt()).isNotNull();
 
         ArgumentCaptor<Ledger> ledger = ArgumentCaptor.forClass(Ledger.class);
         verify(ledgerRepository).save(ledger.capture());
         assertThat(ledger.getValue().getType()).isEqualTo(LedgerType.CHARGE);
-        assertThat(ledger.getValue().getAmount()).isCloseTo(100.0, within(1e-9));
+        assertThat(ledger.getValue().getAmount()).isEqualByComparingTo("100.0");
     }
 
     @Test
     void charge_nullMethod_defaultsToCard() {
         when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Payment p = paymentService.charge(1L, 2L, 50.0, null);
+        Payment p = paymentService.charge(1L, 2L, new BigDecimal("50.0"), null);
 
         assertThat(p.getMethod()).isEqualTo("CARD");
     }

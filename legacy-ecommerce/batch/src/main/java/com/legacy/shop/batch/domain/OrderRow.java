@@ -1,12 +1,15 @@
 package com.legacy.shop.batch.domain;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.domain.OrderStatus;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -21,7 +24,8 @@ public class OrderRow {
 
     private Long customerId;
 
-    private double totalAmount;
+    @Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)
+    private BigDecimal totalAmount;
 
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
@@ -36,7 +40,7 @@ public class OrderRow {
         return customerId;
     }
 
-    public double getTotalAmount() {
+    public BigDecimal getTotalAmount() {
         return totalAmount;
     }
 

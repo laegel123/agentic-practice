@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 /**
  * 정산 잡: 취소되지 않은 주문의 매출 합계를 낸다.
  */
@@ -21,13 +23,13 @@ public class SettlementJob {
         this.orderRowRepository = orderRowRepository;
     }
 
-    public double settle() {
-        double revenue = 0;
+    public BigDecimal settle() {
+        BigDecimal revenue = BigDecimal.ZERO;
         for (OrderRow o : orderRowRepository.findAll()) {
             if (o.getStatus() == OrderStatus.CANCELLED) {
                 continue; // 취소 주문은 매출에서 제외 (BT1)
             }
-            revenue += o.getTotalAmount();
+            revenue = revenue.add(o.getTotalAmount());
         }
         log.info("[정산] 총 매출 = {}", revenue);
         return revenue;

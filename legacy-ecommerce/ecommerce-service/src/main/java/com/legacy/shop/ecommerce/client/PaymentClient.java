@@ -11,6 +11,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+
 /**
  * 결제 서비스 호출 클라이언트.
  *
@@ -35,7 +37,7 @@ public class PaymentClient {
         this.paymentBaseUrl = paymentBaseUrl;
     }
 
-    public Long charge(Long orderId, Long customerId, double amount) {
+    public Long charge(Long orderId, Long customerId, BigDecimal amount) {
         PaymentChargeRequest req = new PaymentChargeRequest(orderId, customerId, amount);
         ApiResponse<PaymentChargeResponse> resp = restTemplate.exchange(
                 paymentBaseUrl + "/api/payments/charge",
@@ -45,7 +47,7 @@ public class PaymentClient {
         return resp.getData().paymentId();
     }
 
-    public void refund(Long paymentId, double amount) {
+    public void refund(Long paymentId, BigDecimal amount) {
         PaymentRefundRequest req = new PaymentRefundRequest(paymentId, amount);
         // 응답 본문은 ecommerce 에서 사용하지 않는다(환불은 admin→payment 경로가 주력). 읽어서 버린다.
         restTemplate.postForObject(paymentBaseUrl + "/api/payments/refund", req, String.class);

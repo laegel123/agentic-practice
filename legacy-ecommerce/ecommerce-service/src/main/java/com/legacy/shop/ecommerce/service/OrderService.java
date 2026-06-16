@@ -1,6 +1,7 @@
 package com.legacy.shop.ecommerce.service;
 
 import com.legacy.shop.common.util.DateUtils;
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.domain.OrderStatus;
 import com.legacy.shop.core.error.BusinessException;
 import com.legacy.shop.core.error.ErrorCode;
@@ -106,7 +107,7 @@ public class OrderService {
             oi.setProductName(p.getName());
             oi.setUnitPrice(ci.getUnitPrice());
             oi.setQuantity(ci.getQuantity());
-            oi.setLineTotal(ci.getUnitPrice() * ci.getQuantity());
+            oi.setLineTotal(MoneyUtils.multiply(ci.getUnitPrice(), ci.getQuantity()));
             order.addItem(oi);
         }
         return order;

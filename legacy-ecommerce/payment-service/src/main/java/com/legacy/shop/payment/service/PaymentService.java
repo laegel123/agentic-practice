@@ -12,6 +12,8 @@ import com.legacy.shop.payment.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 /**
  * 결제 승인.
  */
@@ -27,7 +29,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public Payment charge(Long orderId, Long customerId, double amount, String method) {
+    public Payment charge(Long orderId, Long customerId, BigDecimal amount, String method) {
         Payment p = new Payment();
         p.setOrderId(orderId);
         p.setCustomerId(customerId);

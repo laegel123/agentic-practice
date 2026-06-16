@@ -10,6 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 
@@ -37,7 +38,7 @@ class CouponServiceTest {
         Coupon c = new Coupon();
         c.setCode("SAVE10");
         c.setDiscountRate(0.1);
-        c.setMinOrderAmount(0);
+        c.setMinOrderAmount(BigDecimal.ZERO);
         c.setExpiryDate(expiry);
         return c;
     }

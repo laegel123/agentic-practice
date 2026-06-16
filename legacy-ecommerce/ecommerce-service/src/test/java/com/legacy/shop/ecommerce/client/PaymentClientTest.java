@@ -7,6 +7,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -47,7 +49,7 @@ class PaymentClientTest {
                                 "\"amount\":220.0,\"status\":\"APPROVED\",\"method\":null}}",
                         MediaType.APPLICATION_JSON));
 
-        Long paymentId = client.charge(7L, 3L, 220.0);
+        Long paymentId = client.charge(7L, 3L, new BigDecimal("220.0"));
 
         assertThat(paymentId).isEqualTo(999L);   // data 의 다른 필드는 무시하고 paymentId 만 읽는다
         server.verify();
@@ -62,7 +64,7 @@ class PaymentClientTest {
                 .andRespond(withSuccess("{\"code\":\"0000\",\"message\":\"OK\",\"data\":null}",
                         MediaType.APPLICATION_JSON));
 
-        client.refund(5L, 40.0);
+        client.refund(5L, new BigDecimal("40.0"));
 
         server.verify();
     }

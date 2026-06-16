@@ -1,11 +1,15 @@
 package com.legacy.shop.ecommerce.domain;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.domain.BaseTimeEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "product")
@@ -17,8 +21,9 @@ public class Product extends BaseTimeEntity {
 
     private String name;
 
-    // 금액은 double 로 저장한다.
-    private double price;
+    // 금액은 BigDecimal(소수 둘째자리)로 저장한다 ([ADR-0006]).
+    @Column(precision = MoneyUtils.MONEY_PRECISION, scale = MoneyUtils.MONEY_SCALE)
+    private BigDecimal price;
 
     // 카테고리는 FK 관계 안 맺고 id 만 들고 있음.
     private Long categoryId;
@@ -39,11 +44,11 @@ public class Product extends BaseTimeEntity {
         this.name = name;
     }
 
-    public double getPrice() {
+    public BigDecimal getPrice() {
         return price;
     }
 
-    public void setPrice(double price) {
+    public void setPrice(BigDecimal price) {
         this.price = price;
     }
 
