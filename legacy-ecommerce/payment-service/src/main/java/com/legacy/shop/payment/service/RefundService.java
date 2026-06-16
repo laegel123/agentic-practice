@@ -37,6 +37,16 @@ public class RefundService {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
 
+        // 기존 환불 누계 + 이번 환불액이 결제액을 초과하면 거부한다 (과다 환불 차단 — B6).
+        double alreadyRefunded = 0;
+        for (Refund r : refundRepository.findByPaymentId(paymentId)) {
+            alreadyRefunded += r.getAmount();
+        }
+        double refundedTotal = alreadyRefunded + amount;
+        if (refundedTotal > payment.getAmount()) {
+            throw new BusinessException(ErrorCode.REFUND_EXCEEDS_PAYMENT);
+        }
+
         Refund refund = new Refund();
         refund.setPaymentId(paymentId);
         refund.setAmount(amount);
@@ -51,10 +61,6 @@ public class RefundService {
         ledgerRepository.save(l);
 
         // 누적 환불액으로 상태 갱신
-        double refundedTotal = 0;
-        for (Refund r : refundRepository.findByPaymentId(paymentId)) {
-            refundedTotal += r.getAmount();
-        }
         if (refundedTotal >= payment.getAmount()) {
             payment.setStatus(PaymentStatus.REFUNDED);
         } else {

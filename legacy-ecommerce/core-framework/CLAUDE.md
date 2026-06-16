@@ -46,7 +46,7 @@ src/main/java/com/legacy/shop/core/
 | 클래스 | 책임 | ⚠️ 함정 |
 |--------|------|---------|
 | `BaseTimeEntity` | 생성/수정 시각 공통 컬럼 | 동작하려면 부트 앱에 `@EnableJpaAuditing` 필요(이 모듈은 켜지 않음). getter 만, setter 없음 |
-| `ErrorCode` | 전사 에러코드 | 모듈 구분 없이 **단일 enum**(비대·드리프트). `REFUND_EXCEEDS_PAYMENT`(PM002)는 정의만 되고 미사용(B6) |
+| `ErrorCode` | 전사 에러코드 | 모듈 구분 없이 **단일 enum**(비대·드리프트). `REFUND_EXCEEDS_PAYMENT`(PM002)는 B6 수정으로 `RefundService` 에서 사용됨(✅) |
 | `BusinessException` | 업무 예외 | `RuntimeException` 상속, throws 불필요 |
 | `ApiResponse<T>` | 공통 응답 | DTO=record 컨벤션과 달리 **가변 클래스+setter**(jackson 역직렬화용). 성공 코드 `"0000"` 은 enum 밖 리터럴 |
 | `GlobalExceptionHandler` | 전역 예외 처리 | `handleEtc()` 가 예외를 **로그 없이** 일괄 500 으로 삼킴(R4). `ErrorCode.INTERNAL_ERROR` 대신 문자열 하드코딩 |
@@ -66,7 +66,7 @@ src/main/java/com/legacy/shop/core/
   - **R4 — 예외 삼킴**: `GlobalExceptionHandler.handleEtc()` 가 비즈니스 외 예외를 **로그 없이** 500 으로
     내린다. 원인 추적 불가 — 개선 시 로깅(SLF4J)을 넣고 `ErrorCode.INTERNAL_ERROR` 를 쓴다.
   - **단일 `ErrorCode` enum**: 모든 모듈 코드가 한 enum 에 몰려 비대·드리프트 위험. PM002
-    (`REFUND_EXCEEDS_PAYMENT`)는 정의만 되고 한 번도 던져지지 않는다(B6 의 뿌리).
+    (`REFUND_EXCEEDS_PAYMENT`)는 B6 수정으로 `RefundService` 에서 던져진다(✅ 2026-06-16). PM001(`PAYMENT_FAILED`)은 여전히 미사용.
   - 전체 목록은 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md).
 - 금액은 전사적으로 `double`(배경 [ADR-0003](../docs/adr/0003-money-as-double.md)). `ApiResponse` 의
   `data` 에 금액이 실려도 동일하다.

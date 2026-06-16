@@ -65,13 +65,14 @@ H2 파일 DB를 쓰며, **2개의 물리 DB**가 존재한다.
 2. 주문/주문아이템 생성        Order, OrderItem
 3. 쿠폰 적용 + 금액 계산        CouponService.getValidCoupon → PricingService.calculate
 4. 결제 호출 (HTTP)            PaymentClient.charge ──REST──▶ payment-service :8082
-5. 재고 확정                   InventoryService.confirm
+5. 재고 확정                   InventoryService.confirm (검증만, 차감 없음 — B1 ✅)
 6. 장바구니 비우기             Cart.clear
 7. 주문완료 알림               (현재는 System.out.println)
 ```
 
-> 주의: 1단계 `reserve()` 와 5단계 `confirm()` 가 **둘 다 재고를 차감**한다(둘의 구현이 동일).
-> 결과적으로 주문 1건당 재고가 2배 빠진다. [known-issues.md](./known-issues.md) 참고.
+> ✅ B1 수정됨(2026-06-16): (이전) 1단계 `reserve()` 와 5단계 `confirm()` 가 **둘 다 재고를 차감**해
+> 주문 1건당 재고가 2배 빠졌다. 이제 `confirm()` 은 검증만 하고 차감은 `reserve()` 에서 1회만 일어난다.
+> [known-issues.md](./known-issues.md) B1 참고.
 
 금액 계산 순서는 **소계 → 할인 → 세금 → 합계**이며, 세금은 소계 기준 10%다(`PricingService`).
 모든 금액은 `double` 로 다루고 `MoneyUtils.round()` 로 정리한다(현재 반올림이 아니라 **버림**으로 동작).

@@ -35,8 +35,9 @@ import static org.mockito.Mockito.when;
 /**
  * OrderService.placeOrder(God method) 의 현재 동작 고정. 7개 협력자를 모두 mock 한다.
  *
- * 핵심: 정상 흐름에서 품목당 inventory.reserve(1단계) '와' confirm(5단계) 가 모두 호출되어
- * 재고가 두 번 차감된다 — 이중 차감 버그를 박제한다. (docs/known-issues.md B1)
+ * 핵심: 정상 흐름에서 품목당 inventory.reserve(1단계)·confirm(5단계) 가 모두 호출된다(주문 오케스트레이션).
+ * 단, B1 수정 이후 confirm 은 재고를 다시 차감하지 않으므로 재고는 '한 번만' 빠진다 — 실제 차감 횟수
+ * 검증은 InventoryService 단위에서 한다(InventoryServiceTest). (docs/known-issues.md B1)
  * 이 테스트는 향후 placeOrder 추출 리팩토링(R1)의 안전망이기도 하다.
  */
 @ExtendWith(MockitoExtension.class)
@@ -72,7 +73,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void placeOrder_happyPath_decrementsStockTwice_andCompletes() {
+    void placeOrder_happyPath_reservesThenConfirms_andCompletes() {
         Cart cart = cartWithOneItem(2);
         when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cart));
         when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product()));
@@ -83,7 +84,7 @@ class OrderServiceTest {
 
         Order order = orderService.placeOrder(CUSTOMER_ID, null);
 
-        // 재고 이중 차감: reserve(1단계) 와 confirm(5단계) 모두 호출됨.
+        // 주문 흐름: reserve(1단계)·confirm(5단계) 모두 호출됨(confirm 은 더 이상 재고를 다시 차감하지 않음 — B1).
         verify(inventoryService).checkStock(PRODUCT_ID, 2);
         verify(inventoryService).reserve(PRODUCT_ID, 2);
         verify(inventoryService).confirm(PRODUCT_ID, 2);

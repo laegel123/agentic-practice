@@ -22,16 +22,18 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
-import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * RefundService.refund 의 현재 동작 고정: 누적 환불액으로 상태 전이, REFUND 원장 기록.
+ * RefundService.refund 의 동작 고정: 누적 환불액으로 상태 전이, REFUND 원장 기록, 과다 환불 차단.
  *
- * 주의: 환불 누계가 결제액을 초과해도 막지 않는다(REFUND_EXCEEDS_PAYMENT 미사용). over-refund 케이스가
- * 그 누락을 박제한다 — 한도 검증을 추가하면 해당 단언을 뒤집어야 한다. (docs/known-issues.md B6)
+ * B6 수정: 기존 환불 누계 + 이번 환불액이 결제액을 초과하면 REFUND_EXCEEDS_PAYMENT 로 거부한다.
+ * (이전에는 한도 검증이 없어 과다 환불이 통과했다 — overRefund 케이스가 그 차단을 단언한다.)
+ * stub 규약: refundRepository.findByPaymentId 는 '이번 호출 이전에 이미 존재하던' 환불 목록을 돌려준다.
+ * (docs/known-issues.md B6)
  */
 @ExtendWith(MockitoExtension.class)
 class RefundServiceTest {
@@ -62,8 +64,8 @@ class RefundServiceTest {
     void partialRefund_setsPartiallyRefunded_andWritesRefundLedger() {
         Payment payment = paymentOf(100.0);
         when(paymentRepository.findById(PAYMENT_ID)).thenReturn(Optional.of(payment));
+        when(refundRepository.findByPaymentId(PAYMENT_ID)).thenReturn(List.of()); // 첫 환불
         when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(refundRepository.findByPaymentId(PAYMENT_ID)).thenReturn(List.of(refundOf(30.0)));
 
         refundService.refund(PAYMENT_ID, 30.0, "단순변심");
 
@@ -76,28 +78,32 @@ class RefundServiceTest {
 
     @Test
     void fullRefund_setsRefunded_whenCumulativeEqualsPayment() {
+        // 기존 60 환불 + 이번 40 = 정확히 100(=결제액) → 경계상 허용되고 REFUNDED.
         Payment payment = paymentOf(100.0);
         when(paymentRepository.findById(PAYMENT_ID)).thenReturn(Optional.of(payment));
+        when(refundRepository.findByPaymentId(PAYMENT_ID)).thenReturn(List.of(refundOf(60.0)));
         when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(refundRepository.findByPaymentId(PAYMENT_ID)).thenReturn(List.of(refundOf(100.0)));
 
-        refundService.refund(PAYMENT_ID, 100.0, "전액환불");
+        refundService.refund(PAYMENT_ID, 40.0, "잔액환불");
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
     }
 
     @Test
-    void overRefund_isNotBlocked_currentlyAllowed() {
-        // 결제 100 인데 150 환불 시도 → 한도 검증이 없어 그대로 REFUNDED 처리됨(버그).
+    void overRefund_isBlocked_throwsRefundExceedsPayment() {
+        // 결제 100, 기존 60 환불 상태에서 50 추가 환불 시도(누계 110 > 100) → 한도 초과로 거부(B6 수정).
         Payment payment = paymentOf(100.0);
         when(paymentRepository.findById(PAYMENT_ID)).thenReturn(Optional.of(payment));
-        when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(refundRepository.findByPaymentId(PAYMENT_ID)).thenReturn(List.of(refundOf(150.0)));
+        when(refundRepository.findByPaymentId(PAYMENT_ID)).thenReturn(List.of(refundOf(60.0)));
 
-        Refund r = refundService.refund(PAYMENT_ID, 150.0, "과다환불");
+        BusinessException ex = catchThrowableOfType(BusinessException.class,
+                () -> refundService.refund(PAYMENT_ID, 50.0, "과다환불"));
 
-        assertThat(r.getAmount()).isCloseTo(150.0, within(1e-9));
-        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.REFUND_EXCEEDS_PAYMENT);
+        // 한도 초과 시 환불/원장은 기록되지 않고 결제 상태도 바뀌지 않는다.
+        verify(refundRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.APPROVED);
     }
 
     @Test

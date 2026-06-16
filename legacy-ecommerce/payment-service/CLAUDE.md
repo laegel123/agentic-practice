@@ -26,13 +26,12 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :payment-service:build      # 빌드
 .\gradlew.bat :payment-service:bootRun     # 실행 (:8082)
-.\gradlew.bat :payment-service:test        # 테스트 — characterization 6개 (charge 2 + refund 4)
+.\gradlew.bat :payment-service:test        # 테스트 — 6개 (charge 2 + refund 4: 부분/누계전액/과다차단/미존재)
 ```
 
-> 테스트는 **현재 동작(버그 포함)을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ).
-> 특히 `RefundServiceTest.overRefund_isNotBlocked_currentlyAllowed` 는 **과다 환불을 막지 않는 현재
-> 동작(B6)을 일부러 박제**한다 — 한도 검증을 추가하면 동작이 바뀌므로 그 단언을 **같은 커밋에서
-> 의도적으로 뒤집어야** 한다. "초록 만들기"로 약화시키지 말 것.
+> 테스트는 JUnit5 + Mockito + AssertJ 기반이다. `RefundServiceTest.overRefund_isBlocked_throwsRefundExceedsPayment`
+> 는 **B6(과다 환불) 수정의 회귀 테스트**다 — 과거의 "막지 않음" 단언을 차단(`REFUND_EXCEEDS_PAYMENT`)으로
+> 뒤집은 것이다. 한도 검증을 약화시키지 말 것. 나머지 refund 케이스는 부분환불/누계 전액환불/미존재 결제를 고정한다.
 
 > 기동 순서: payment 는 외부 의존이 없어 단독으로 떠도 된다. 다만 ecommerce 의 주문 흐름이 런타임에
 > 이 서비스를 호출하므로 권장 전체 순서는 **ecommerce → payment → (admin / batch)** 다.
@@ -48,7 +47,7 @@ src/main/java/com/legacy/shop/payment/
 │   └── PaymentMethodController  /api/payment-methods (add / list)
 ├── service/                    비즈니스 로직 (3개)
 │   ├── PaymentService           charge: APPROVED 결제 + CHARGE 원장 기록
-│   ├── RefundService            refund: REFUND 원장 + 누적액으로 상태 전이 (⚠ 과다환불 미검증 B6)
+│   ├── RefundService            refund: 한도 검증(B6 ✅) → REFUND 원장 + 누적액으로 상태 전이
 │   └── PaymentMethodService     결제수단 등록/조회 (카드번호는 StringUtils.maskCard 로 마스킹 저장)
 ├── domain/                     JPA 엔티티 4 + enum 2 (자체 스키마 소유)
 │   ├── Payment / Refund / Ledger / PaymentMethod
@@ -60,7 +59,7 @@ src/main/java/com/legacy/shop/payment/
 | 메서드 | 경로 | 요청 → 응답 | 핸들러 |
 |--------|------|------------|--------|
 | POST | `/api/payments/charge` | `ChargeRequest(orderId, customerId, amount, method)` → `PaymentResponse` | `PaymentController.charge` |
-| POST | `/api/payments/refund` | `RefundRequest(paymentId, amount, reason)` → `RefundResponse` | `PaymentController.refund` (⚠ 과다환불 B6) |
+| POST | `/api/payments/refund` | `RefundRequest(paymentId, amount, reason)` → `RefundResponse` | `PaymentController.refund` (한도 초과 시 `REFUND_EXCEEDS_PAYMENT` — B6 ✅) |
 | GET | `/api/payments/{id}` | → `PaymentResponse` | `PaymentController.get` (없으면 `PAYMENT_NOT_FOUND`) |
 | POST | `/api/payment-methods` | `AddPaymentMethodRequest(customerId, type, cardNo)` → `PaymentMethodResponse` | `PaymentMethodController.add` |
 | GET | `/api/payment-methods?customerId=` | → `List<PaymentMethodResponse>` | `PaymentMethodController.list` |
@@ -75,13 +74,13 @@ src/main/java/com/legacy/shop/payment/
 - **원장(ledger) 불변식**: `charge` 는 반드시 `CHARGE` 원장 1행을, `refund` 는 반드시 `REFUND` 원장
   1행을 함께 기록한다. 결제/환불 로직을 손댈 때 이 짝 기록을 빠뜨리지 말 것(원장이 정산·대사의 근거다).
 - 결제 관련 에러코드는 `core-framework` 의 **단일 `ErrorCode` enum** 에 모여 있다(`PM001` `PAYMENT_FAILED`,
-  `PM002` `REFUND_EXCEEDS_PAYMENT`, `PM003` `PAYMENT_NOT_FOUND`). 현재 던지는 것은 `PAYMENT_NOT_FOUND`
-  뿐이며 `PM001`·`PM002` 는 **정의만 되고 미사용**이다(아래 B6).
+  `PM002` `REFUND_EXCEEDS_PAYMENT`, `PM003` `PAYMENT_NOT_FOUND`). `PM002` 는 환불 한도 검증에서 던진다(B6 ✅),
+  `PM003` 은 결제 미존재 시. `PM001`(`PAYMENT_FAILED`)은 아직 미사용(`charge` 가 항상 성공하는 스텁이라).
 - ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.**
-  - **B6 — 과다 환불 미검증(높음)**: `RefundService.refund()` 가 환불 누계가 결제액을 초과해도 막지
-    않는다. `ErrorCode.REFUND_EXCEEDS_PAYMENT`(PM002)가 정의돼 있으나 **한 번도 던져지지 않는다**.
-    characterization 테스트가 현재 동작을 박제하고 있으니 한도 검증을 추가할 때 같은 커밋에서 단언을
-    뒤집는다 — [`../docs/known-issues.md`](../docs/known-issues.md) B6.
+  - **B6 — 과다 환불 ✅ 수정됨(2026-06-16)**: (이전) `RefundService.refund()` 가 환불 누계가 결제액을 초과해도
+    막지 않아 과다 환불 가능(`REFUND_EXCEEDS_PAYMENT` PM002 미사용). → **환불 전 `기존 누계 + 이번 환불 > 결제액`
+    이면 `BusinessException(REFUND_EXCEEDS_PAYMENT)`** 를 던진다(환불/원장 미기록). 회귀 테스트
+    `RefundServiceTest.overRefund_isBlocked_throwsRefundExceedsPayment` — [`../docs/known-issues.md`](../docs/known-issues.md) B6.
   - **금액 `double`(B3 / [ADR-0003](../docs/adr/0003-money-as-double.md))**: `amount`·원장·환불 누계 비교가
     전부 `double`. `refundedTotal >= payment.getAmount()` 같은 누적 비교에 부동소수 오차가 끼어들 수 있다.
     금액을 새로 다룰 때 임의 반올림을 끼워넣지 말고 기존 정책을 따른다.

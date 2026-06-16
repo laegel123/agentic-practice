@@ -23,7 +23,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :ecommerce-service:build      # 빌드
 .\gradlew.bat :ecommerce-service:bootRun     # 실행 (:8081)
-.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 characterization 4 + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀)
+.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart·Coupon·Order·Inventory) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀)
 ```
 
 > 테스트는 **현재 동작(버그 포함)을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ,
@@ -47,7 +47,7 @@ src/main/java/com/legacy/shop/ecommerce/
 ├── service/                      비즈니스 로직 (7개)
 │   ├── OrderService              주문 오케스트레이션      (⚠ God method R1)
 │   ├── CartService               장바구니                (⚠ cartTotal 수량 무시 B2)
-│   ├── InventoryService          재고 reserve/confirm/restore (⚠ 이중차감 B1)
+│   ├── InventoryService          재고 reserve(차감)/confirm(검증만)/restore(복원) (B1 ✅ 이중차감 수정)
 │   ├── PricingService            소계→할인→세금→합계 → PricingResult
 │   ├── CouponService             쿠폰 검증               (⚠ 만료 당일 거부 B4)
 │   ├── ProductService            상품 조회/검색/등록
@@ -81,14 +81,17 @@ src/main/java/com/legacy/shop/ecommerce/
   엔티티는 `BaseTimeEntity` 상속·`@GeneratedValue(IDENTITY)`·`@Enumerated(STRING)`, 응답은
   `ApiResponse<T>`(성공 `code="0000"`), 오류는 `throw new BusinessException(ErrorCode.X)`.
   금액 계산은 복제하지 말고 `PricingService`/`MoneyUtils` 를 재사용한다.
-- ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.** B1·B2·B4 와 가격 계산은 이미
+- ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.** B2·B4 와 가격 계산은 이미
   characterization 테스트가 현재 동작을 박제하고 있으니, 고칠 때는 같은 커밋에서 단언을 뒤집는다.
+  (B1 재고 이중차감은 ✅ 2026-06-16 수정됨 — 아래 참조.)
   - **E1 — SQL 인젝션 ✅ 수정됨(2026-06-15)**: `ProductSearchDao.searchByName` 이 검색어를 native SQL 에
     문자열로 이어붙이던 것을 named parameter(`:keyword`) 바인딩으로 교체했다. 회귀 테스트
     `ProductSearchDaoTest`(정상 검색 보존 + 인젝션 페이로드 차단). 새 native 쿼리도 **반드시 파라미터
     바인딩**을 쓴다 — 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md) **E1**.
-  - **B1 — 재고 이중차감**: `InventoryService.reserve()` 와 `confirm()` 가 **동일하게 차감**하고
-    `OrderService.placeOrder` 가 둘 다 호출 → 주문 1건당 재고 2배 차감.
+  - **B1 — 재고 이중차감 ✅ 수정됨(2026-06-16)**: (이전) `InventoryService.confirm()` 이 `reserve()` 와
+    **동일하게 차감**해 `OrderService.placeOrder` 가 둘 다 호출하면 주문 1건당 재고 2배 차감. → **`confirm()`
+    은 더 이상 차감하지 않고 존재 검증만**(reserve 단계에서 1회만 차감). 회귀 테스트 `InventoryServiceTest`(reserve
+    차감·confirm 불변·reserve→confirm 단일차감·미존재 예외·restore 복원).
   - **B2 — 장바구니 합계**: `CartService.cartTotal()` 이 수량을 무시(`total += unitPrice`).
   - **B4 — 쿠폰 off-by-one**: `CouponService` 가 만료일 당일 쿠폰을 거부(주석 "당일 포함"과 모순).
   - **R1 — God method**: `OrderService.placeOrder` 가 재고/주문/쿠폰/가격/결제/장바구니/알림 7책임을
@@ -99,4 +102,4 @@ src/main/java/com/legacy/shop/ecommerce/
 ## 더 읽기
 
 - 이 모듈: [`docs/architecture.md`](./docs/architecture.md) — 도메인 모델·주문 흐름 7단계·설정·시딩·테스트 루프 상세
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1**·B1·B2·B4·R1·R2·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)
+- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1 ✅·B1 ✅**·B2·B4·R1·R2·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)

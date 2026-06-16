@@ -101,13 +101,15 @@ OrderController.place(PlaceOrderRequest)
                                   → PricingResult(소계·할인·세금·합계) 를 Order 에 반영
      5) 결제 호출(HTTP)          PaymentClient.charge(orderId, customerId, total) → payment :8082
                                   실패 시 PAYMENT_FAILED. 성공 시 paymentId 저장 + status=PAID
-     6) 재고 확정                각 항목 InventoryService.confirm                ◀ 2차 차감 (⚠ B1)
+     6) 재고 확정                각 항목 InventoryService.confirm                ◀ 검증만(차감 없음, B1 ✅)
      7) 장바구니 비우기 + 알림    cart.clear() / System.out.println (⚠ C1)
   → ApiResponse.success(OrderResponse)
 ```
 
-⚠️ **재고 이중차감(B1)**: 2단계 `reserve()` 와 6단계 `confirm()` 가 동일하게 `quantity - qty` 를
-수행한다(별도 "예약" 상태가 없음). 그래서 주문 1건당 재고가 2배로 빠진다.
+✅ **재고 이중차감(B1) 수정됨(2026-06-16)**: (이전) 2단계 `reserve()` 와 6단계 `confirm()` 가 동일하게
+`quantity - qty` 를 수행해(별도 "예약" 상태가 없음) 주문 1건당 재고가 2배로 빠졌다. → **`confirm()` 은
+더 이상 차감하지 않고 재고 레코드 존재만 검증**한다. 차감은 2단계 `reserve()` 에서 1회만 일어난다.
+회귀 테스트는 `InventoryServiceTest`(reserve→confirm 단일차감).
 ⚠️ **God method(R1)**: 재고·주문·쿠폰·가격·결제·장바구니·알림이 한 메서드/한 트랜잭션에 묶여 있어
 결제(외부 HTTP)가 트랜잭션 안에서 호출되고, 재고 복원(`restore`)·보상 로직도 빠져 있다.
 
@@ -168,9 +170,10 @@ payment:
 아니라 *지금 코드가 실제로 하는 일*을 박제해, 향후 버그 수정·리팩토링의 안전망을 만드는 것이다.
 버그를 고치면 동작이 바뀌므로 해당 단언을 **같은 커밋에서 의도적으로 뒤집는다**(green 으로 약화 금지).
 
-| 테스트 | 대상 | 박제하는 현재 동작 |
+| 테스트 | 대상 | 고정하는 동작 |
 |--------|------|--------------------|
-| `service/OrderServiceTest` | `OrderService.placeOrder` (협력자 7개 Mockito mock) | `reserve`+`confirm` 모두 호출(⚠ 재고 이중차감 B1·R1 안전망), 결제 실패 시 `confirm` 미호출·장바구니 유지, 빈 장바구니 → `EMPTY_CART` |
+| `service/OrderServiceTest` | `OrderService.placeOrder` (협력자 7개 Mockito mock) | `reserve`·`confirm` 모두 호출(R1 안전망; confirm 은 B1 수정 후 비차감), 결제 실패 시 `confirm` 미호출·장바구니 유지, 빈 장바구니 → `EMPTY_CART` |
+| `service/InventoryServiceTest` | `InventoryService.reserve/confirm/restore` | **B1 ✅ 회귀**: reserve 차감·confirm 불변·reserve→confirm 단일차감(50→48, 이전 46)·미존재 예외·restore 복원 |
 | `service/CartServiceTest` | `CartService.cartTotal` | 수량 무시(10×2 + 20×3 이지만 결과 30.0 = unitPrice 합, ⚠ B2) |
 | `service/CouponServiceTest` | `CouponService.getValidCoupon` | 만료일 **당일 거부**(⚠ B4), 익일 유효/전일 만료/미존재/빈 코드 |
 | `service/PricingServiceTest` | `PricingService.calculate` | 소계=Σ(단가×수량), 세금 10%, 쿠폰 최소주문 조건, `round`(버림) |
@@ -178,9 +181,11 @@ payment:
 
 테스트는 **인메모리 H2 프로파일**(`src/test/resources/application-test.yml` — `jdbc:h2:mem:testdb`,
 `ddl-auto: create-drop`)로 돌아 운영 파일 DB(`~/legacyshopdb`)를 건드리지 않는다. 단위 테스트는
-순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표는 characterization 테스트(28개)이고, 이 모듈은 추가로
-`repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **40개**
-= characterization 28 + 보안 회귀 12(E1 `ProductSearchDaoTest` 3 + admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6).
+순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표 중 `InventoryServiceTest`(5개)는 B1 수정의 회귀이고
+나머지는 characterization, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀,
+`@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **45개** = characterization 28 + 버그수정 회귀 5(B1
+`InventoryServiceTest`; B6 는 `RefundServiceTest` 단언을 차단으로 뒤집어 흡수) + 보안 회귀 12(E1
+`ProductSearchDaoTest` 3 + admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6).
 
 ## 의존성 / 기동 순서
 

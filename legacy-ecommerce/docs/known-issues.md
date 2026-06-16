@@ -11,12 +11,12 @@
 
 | # | 위치 | 증상 | 영향 |
 |---|------|------|------|
-| B1 | `ecommerce/service/InventoryService.java` — `reserve()` / `confirm()` | 두 메서드가 **동일하게 재고를 차감**한다. `OrderService.placeOrder` 가 1단계(reserve)·5단계(confirm) 모두 호출 → **주문 1건당 재고 2배 차감**. | 높음 |
+| B1 | `ecommerce/service/InventoryService.java` — `confirm()` | ✅ **수정됨(2026-06-16).** (이전) `confirm()` 이 `reserve()` 와 동일하게 재고를 또 차감 → `OrderService.placeOrder` 가 reserve(1단계)·confirm(5단계) 모두 호출해 **주문 1건당 재고 2배 차감**. → **`confirm()` 은 더 이상 차감하지 않고 존재 검증만 수행**(reserve 단계에서 이미 차감). 회귀 테스트 `InventoryServiceTest`(5개: reserve 차감·confirm 불변·reserve→confirm 단일차감·미존재 예외·restore 복원). | 높음 |
 | B2 | `ecommerce/service/CartService.java` — `cartTotal()` | `total += unitPrice` 로 **수량을 무시**한다. 장바구니 합계가 과소 계산. | 중간 |
 | B3 | `common-util/util/MoneyUtils.java` — `round()` | `Math.floor` 로 **버림**한다(주석은 "반올림 의도"라고 명시). 모든 금액 계산이 이 함수를 거친다. | 중간 |
 | B4 | `ecommerce/service/CouponService.java` — `getValidCoupon()` | `!expiryDate.isAfter(today)` → **만료일 당일에 쿠폰이 거부**된다. `Coupon.expiryDate` 주석("만료일 당일 포함")과 모순(off-by-one). | 중간 |
 | B5 | `core-framework/web/PageRequestDto.java` — `getOffset()` | `page * size` 인데 page가 1-based → 첫 페이지를 건너뛰는 오프셋 오류. | 중간 |
-| B6 | `payment/service/RefundService.java` — `refund()` | 환불 누계가 결제액을 초과해도 막지 않는다. `ErrorCode.REFUND_EXCEEDS_PAYMENT`(PM002)가 정의돼 있으나 **한 번도 던져지지 않는다**(미사용 에러코드). 과다 환불 가능. | 높음 |
+| B6 | `payment/service/RefundService.java` — `refund()` | ✅ **수정됨(2026-06-16).** (이전) 환불 누계가 결제액을 초과해도 막지 않아 과다 환불 가능(`REFUND_EXCEEDS_PAYMENT` PM002 정의만 되고 미사용). → **환불 전 `기존 누계 + 이번 환불 > 결제액` 이면 `BusinessException(REFUND_EXCEEDS_PAYMENT)` throw**(환불/원장 미기록). 회귀 테스트 `RefundServiceTest.overRefund_isBlocked_throwsRefundExceedsPayment`(단언을 허용→차단으로 뒤집음). | 높음 |
 | B7 | `common-util/util/DateUtils.java` + `batch/job/DailySalesAggregationJob.java` | 주문 시각은 `now()`=**UTC** 로 저장되는데 집계는 `LocalDate.now()`=**서버 로컬**로 비교 → 자정 부근 날짜 경계에서 집계 누락/중복. | 중간 |
 
 ## ⚠️ 위험 · 안티패턴
@@ -70,7 +70,7 @@
    ✅ **완료** (2026-06-12): `common-util`/`ecommerce-service`/`payment-service`에 28개 테스트. B1·B2·B3·B4·B6의
    현재 동작이 고정되어 있다. 이제 아래 수정은 해당 단언을 같은 커밋에서 뒤집으며 진행한다.
 2. **보안 최우선** (모듈 발견) — **3건 모두 ✅ 완료(2026-06-15)**: ~~E1(SQL 인젝션)~~ 파라미터 바인딩 + `ProductSearchDaoTest`. ~~A1(무인증 환불)~~ `AdminAuth` 주입 + `X-Admin-Token` 검사 + `AdminRefundControllerTest`. ~~CU1(MD5 해시)~~ PBKDF2(임의 salt)+레거시 MD5 검증 폴백(점진 마이그레이션) + `CryptoUtilsTest`.
-3. **고영향·저위험 버그**: B1, B2, B3, B4, B6, BT1 (테스트의 단언을 같은 커밋에서 뒤집어 의도를 드러낸다).
+3. **고영향·저위험 버그**: ~~B1(재고 이중차감)~~ ✅ 완료(2026-06-16, `confirm` 비차감 + `InventoryServiceTest`), ~~B6(과다환불)~~ ✅ 완료(2026-06-16, 한도 검증 + `RefundServiceTest` 단언 뒤집음). 남은: B2, B3, B4, BT1 (테스트의 단언을 같은 커밋에서 뒤집어 의도를 드러낸다).
 4. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거), CU2(JSON 오류처리).
 5. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO), BT2(enum 동기화).
 6. **대형 과제**: BigDecimal 전환, DB 구조, 설정 외부화(R5), B7 타임존 정리.
