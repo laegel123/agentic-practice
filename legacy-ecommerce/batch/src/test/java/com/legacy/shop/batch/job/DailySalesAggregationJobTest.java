@@ -6,13 +6,15 @@ import com.legacy.shop.batch.job.DailySalesAggregationJob.DailySales;
 import com.legacy.shop.batch.repository.OrderRowRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,23 +25,29 @@ import static org.mockito.Mockito.when;
  * DailySalesAggregationJob.aggregate 의 동작 고정.
  *
  * BT1 수정(2026-06-16): 오늘 매출 집계에서 CANCELLED 주문을 제외한다(취소 주문도 합산하던 결함).
- * (docs/known-issues.md BT1)
+ * B7 수정(2026-06-16): '오늘' 판정을 서버 로컬(LocalDate.now())이 아니라 주문 시각(UTC)과 같은
+ *   기준(주입된 UTC Clock)의 날짜로 한다. 시각을 고정 Clock 으로 박제해 자정 부근 날짜 경계를
+ *   결정론적으로 검증한다. (docs/known-issues.md BT1·B7)
  *
- * 주의: 이 잡의 '오늘' 비교는 여전히 LocalDate.now()(서버 로컬) 기준이다 — 타임존 경계 결함(B7)은
- * 이번 범위 밖이라 그대로 둔다. 픽스처 시각은 정오로 잡아 경계 흔들림을 피한다.
+ * OrderRow 는 읽기 전용 프로젝션(setter 없음)이라 ReflectionTestUtils 로 필드를 채워 픽스처를 만든다.
  */
 @ExtendWith(MockitoExtension.class)
 class DailySalesAggregationJobTest {
 
     private static final double EPS = 1e-9;
-    private static final LocalDateTime TODAY_NOON = LocalDate.now().atTime(12, 0);
-    private static final LocalDateTime YESTERDAY_NOON = LocalDate.now().minusDays(1).atTime(12, 0);
+
+    // 집계 기준 시각을 UTC 정오로 고정 → '오늘' = 2024-01-15 (UTC).
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2024-01-15T12:00:00Z"), ZoneOffset.UTC);
+    private static final LocalDate TODAY = LocalDate.of(2024, 1, 15);
+    private static final LocalDateTime TODAY_NOON = TODAY.atTime(12, 0);
+    private static final LocalDateTime YESTERDAY_NOON = TODAY.minusDays(1).atTime(12, 0);
 
     @Mock
     private OrderRowRepository orderRowRepository;
 
-    @InjectMocks
-    private DailySalesAggregationJob job;
+    private DailySalesAggregationJob job() {
+        return new DailySalesAggregationJob(orderRowRepository, CLOCK);
+    }
 
     private OrderRow order(OrderStatus status, double totalAmount, LocalDateTime orderedAt) {
         OrderRow row = new OrderRow();
@@ -56,7 +64,7 @@ class DailySalesAggregationJobTest {
                 order(OrderStatus.CREATED, 50.0, TODAY_NOON),
                 order(OrderStatus.CANCELLED, 30.0, TODAY_NOON)));   // 오늘이지만 제외
 
-        DailySales result = job.aggregate();
+        DailySales result = job().aggregate();
 
         // 취소 제외 → 2건 / 150 (수정 전이라면 3건 / 180).
         assertThat(result.count()).isEqualTo(2);
@@ -69,8 +77,28 @@ class DailySalesAggregationJobTest {
                 order(OrderStatus.PAID, 100.0, TODAY_NOON),
                 order(OrderStatus.PAID, 999.0, YESTERDAY_NOON)));   // 어제 주문은 집계 제외
 
+        DailySales result = job().aggregate();
+
+        assertThat(result.count()).isEqualTo(1);
+        assertThat(result.revenue()).isCloseTo(100.0, within(EPS));
+    }
+
+    @Test
+    void aggregate_dayBoundaryIsUtc_notServerLocal() {
+        // 집계 기준 시각을 UTC 늦은 밤(23:30)으로 고정 → '오늘' = 2024-01-15 (UTC).
+        Clock lateNight = Clock.fixed(Instant.parse("2024-01-15T23:30:00Z"), ZoneOffset.UTC);
+        DailySalesAggregationJob job = new DailySalesAggregationJob(orderRowRepository, lateNight);
+
+        when(orderRowRepository.findAll()).thenReturn(List.of(
+                // UTC 로는 아직 2024-01-15 → 포함. (서버가 KST 였다면 로컬 날짜는 2024-01-16 이라
+                // 옛 LocalDate.now() 기준으로는 빠졌을 주문이다.)
+                order(OrderStatus.PAID, 100.0, LocalDateTime.of(2024, 1, 15, 23, 30)),
+                // UTC 로 이미 다음 날(2024-01-16) → 제외.
+                order(OrderStatus.PAID, 200.0, LocalDateTime.of(2024, 1, 16, 0, 30))));
+
         DailySales result = job.aggregate();
 
+        // 일 경계가 UTC 기준이라 23:30(UTC) 주문만 오늘로 집계된다.
         assertThat(result.count()).isEqualTo(1);
         assertThat(result.revenue()).isCloseTo(100.0, within(EPS));
     }

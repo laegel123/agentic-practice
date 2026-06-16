@@ -39,7 +39,11 @@ public class DateUtils {
         return LocalDateTime.now(ZoneId.of("UTC"));
     }
 
-    /** 오늘 날짜(서버 로컬 기준). 집계/조회에서 이걸 쓴다. */
+    /**
+     * 오늘 날짜(서버 로컬 기준). 쿠폰 만료 등 달력 날짜 비교용.
+     * 주의: UTC 로 저장되는 주문 시각({@link #now()}) 집계에는 쓰지 말 것 — 기준이 어긋나
+     * 자정 부근에서 날짜 경계가 틀어진다(B7). 그런 집계는 UTC 기준 날짜를 써야 한다.
+     */
     public static LocalDate localToday() {
         return LocalDate.now();
     }

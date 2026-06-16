@@ -39,7 +39,7 @@ src/main/java/com/legacy/shop/common/util/
 | 클래스 | 책임 | ⚠️ 함정 |
 |--------|------|---------|
 | `MoneyUtils` | 금액 계산(`double`) | ✅ `round()` `BigDecimal` **HALF_UP 반올림**(B3 수정; 이전 `Math.floor` 버림) |
-| `DateUtils` | 날짜·시각 변환 | `now()`=UTC vs `localToday()`=서버로컬 혼용(B7), static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
+| `DateUtils` | 날짜·시각 변환 | `now()`=UTC, `localToday()`=서버로컬(달력 날짜용). ✅ B7 은 집계 측을 UTC 로 통일해 해소(코드 유지, 주석 정정). static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
 | `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) |
 | `CryptoUtils` | 비밀번호 해시 | ✅ PBKDF2+임의 salt (CU1 수정; 레거시 MD5 검증 폴백) |
 | `JsonUtils` | 직렬화/역직렬화 | 오류 처리 비일관(CU2) |
@@ -55,7 +55,8 @@ src/main/java/com/legacy/shop/common/util/
   - `MoneyUtils.round()` 는 ✅ **B3 수정으로 HALF_UP 반올림**(이전엔 이름과 달리 버림). 모든 금액 계산이 이 함수를
     거치므로 파급이 크다 — `PricingService` 산출값은 정확히 떨어져 영향 없으나, `admin/AdminPriceCalculator`(R6 복붙)는
     아직 `Math.floor` 라 분기. (모방 금지 대상 아님.)
-  - `DateUtils` UTC/로컬 혼용(B7) · static `SimpleDateFormat`(R3) · `parse()` null 반환(C4).
+  - `DateUtils`: static `SimpleDateFormat`(R3) · `parse()` null 반환(C4). (B7 UTC/로컬 혼용은 ✅ 집계 측을
+    UTC `Clock` 으로 통일해 해소 — `localToday()` 는 달력 날짜(쿠폰 만료)용으로 유지, UTC 주문 시각 집계엔 쓰지 말 것.)
   - `JsonUtils` 오류 처리 비일관(CU2). (`CryptoUtils` CU1 은 ✅ PBKDF2+임의 salt 로 수정됨 — 모방 금지 대상 아님.)
   - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md)(**CU1·CU2·CU3**).
 - 금액은 전사적으로 `double` 로 다룬다(배경 [ADR-0003](../docs/adr/0003-money-as-double.md)). 새 금액 계산은

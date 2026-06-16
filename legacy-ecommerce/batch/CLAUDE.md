@@ -20,7 +20,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :batch:build      # 빌드
 .\gradlew.bat :batch:bootRun    # 잡 1회 실행 후 종료
-.\gradlew.bat :batch:test       # 테스트 — SettlementJobTest·DailySalesAggregationJobTest (BT1 취소주문 제외 회귀, 각 2개)
+.\gradlew.bat :batch:test       # 테스트 — SettlementJobTest(BT1, 2개)·DailySalesAggregationJobTest(BT1 취소제외 + B7 UTC 일경계, 3개)
 ```
 
 > ⚠️ `:batch:bootRun` 전에 **ecommerce(:8081)가 먼저 떠서 `legacyshopdb` 스키마를 만들어야** 한다.
@@ -35,7 +35,7 @@ src/main/java/com/legacy/shop/batch/
 ├── BatchRunner.java             CommandLineRunner — 잡 4개를 순서대로 1회 실행
 ├── job/                         배치 잡 (@Component, 생성자 주입)
 │   ├── SettlementJob            정산: 주문 매출 합계 (BT1 ✅ CANCELLED 제외)
-│   ├── DailySalesAggregationJob 일일 집계: 오늘 주문 건수/매출 (BT1 ✅ CANCELLED 제외, DailySales record 반환)
+│   ├── DailySalesAggregationJob 일일 집계: 오늘 주문 건수/매출 (BT1 ✅ CANCELLED 제외; B7 ✅ UTC Clock 기준 '오늘'; DailySales record 반환)
 │   ├── InventoryReconciliationJob 재고 대사: 음수 재고 점검
 │   └── AbandonedCartCleanupJob  방치 장바구니 리포트 (⚠ 삭제 안 함, 건수만)
 ├── domain/                      읽기 전용 프로젝션 엔티티 (ecommerce 테이블 매핑)
@@ -47,7 +47,7 @@ src/main/java/com/legacy/shop/batch/
 | 순서 | 잡 | 동작 | 읽는 테이블 |
 |------|-----|------|-----------|
 | 1 | `SettlementJob.settle()` | 주문 `totalAmount` 합산(CANCELLED 제외 ✅BT1) → 총 매출 출력 | `orders` |
-| 2 | `DailySalesAggregationJob.aggregate()` | 오늘(`LocalDate.now()`) 주문 건수·매출 집계(CANCELLED 제외 ✅BT1) → `DailySales` 반환 | `orders` |
+| 2 | `DailySalesAggregationJob.aggregate()` | 오늘(주입 `Clock` 의 UTC 날짜 ✅B7) 주문 건수·매출 집계(CANCELLED 제외 ✅BT1) → `DailySales` 반환 | `orders` |
 | 3 | `InventoryReconciliationJob.reconcile()` | `quantity < 0` 인 재고 행 탐지·카운트 | `inventory` |
 | 4 | `AbandonedCartCleanupJob.report()` | 생성 30일 경과 장바구니 **건수만** 리포트 | `cart` |
 
@@ -60,8 +60,11 @@ src/main/java/com/legacy/shop/batch/
 - **엔티티는 `*Row` 프로젝션 패턴**이다. 공통 컨벤션과 달리 `BaseTimeEntity` 미상속, `@GeneratedValue` 없음(`@Id` 만),
   **getter 만**(setter 없음), 필요한 컬럼만 매핑한다. 새 읽기 모델도 이 패턴을 따른다.
 - ⚠️ 아래는 known-issues 에 등록된 문제다. **새 코드에서 모방하지 말고**, 손대는 김에 개선한다.
-  - **B7 — 집계 타임존 불일치**: 주문 시각은 UTC 로 저장되는데 `DailySalesAggregationJob` 은
-    `LocalDate.now()`(서버 로컬)로 비교 → 자정 부근 누락/중복. [`../docs/known-issues.md`](../docs/known-issues.md) B7.
+  - **B7 — 집계 타임존 불일치 ✅ 수정됨(2026-06-16)**: (이전) 주문 시각은 UTC 로 저장되는데 `DailySalesAggregationJob`
+    이 `LocalDate.now()`(서버 로컬)로 비교 → 자정 부근 누락/중복 → **집계 '오늘'을 주입된 `Clock`(기본 `Clock.systemUTC()`)
+    기준 UTC 날짜로 통일**(`BatchApplication` 에 `@Bean Clock`, 잡 단일 생성자에 `Clock` 주입). 테스트는 고정 Clock 으로
+    시각을 박제해 UTC 일경계를 결정론적으로 검증한다. 새 잡에서 '오늘/기간'을 다룰 때도 `LocalDate.now()` 대신 주입
+    `Clock`(UTC)을 써 주문 시각과 기준을 맞춘다. [`../docs/known-issues.md`](../docs/known-issues.md) B7.
   - **C1 — `System.out.println`**: `BatchRunner` 와 모든 잡이 결과를 표준출력으로 찍는다. SLF4J 로 교체 대상.
   - **C2 — 전체 스캔 후 Java 필터**: `findAll()` 후 Java 루프로 거른다. 리포지토리 쿼리로 DB 에서 거르도록.
   - **취소주문 매출 포함 ✅ 수정됨(2026-06-16, BT1)**: (이전) `SettlementJob`·`DailySalesAggregationJob` 이 `status` 를

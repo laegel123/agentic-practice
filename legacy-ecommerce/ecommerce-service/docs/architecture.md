@@ -73,7 +73,7 @@ Coupon / Customer               (독립)
 
 | 메서드 | 경로 | 컨트롤러 | 요청 → 응답 |
 |--------|------|----------|-------------|
-| GET | `/api/products` | `ProductController.list` | `PageRequestDto` → `List<ProductResponse>` (⚠ offset B5) |
+| GET | `/api/products` | `ProductController.list` | `PageRequestDto` → `List<ProductResponse>` (offset B5 ✅ `(page-1)*size`) |
 | GET | `/api/products/{id}` | `ProductController.get` | → `ProductResponse` |
 | GET | `/api/products/{id}/stock` | `ProductController.stock` | → `Integer` |
 | GET | `/api/products/search?keyword=` | `ProductController.search` | `keyword` → `List<ProductResponse>` (⚠ SQL 인젝션 E1) |
@@ -177,16 +177,18 @@ payment:
 | `service/CartServiceTest` | `CartService.cartTotal` | **B2 ✅ 회귀**: 단가×수량 합산(10×2 + 20×3 = 80.0, 이전 30.0), 빈 장바구니 0 |
 | `service/CouponServiceTest` | `CouponService.getValidCoupon` | **B4 ✅ 회귀**: 만료일 **당일 유효**(이전 거부), 익일 유효/전일 만료/미존재/빈 코드 |
 | `service/PricingServiceTest` | `PricingService.calculate` | 소계=Σ(단가×수량), 세금 10%, 쿠폰 최소주문 조건, `round`(B3 ✅ 이제 HALF_UP — 이 시나리오들은 정확히 떨어져 값 불변) |
+| `service/ProductServiceTest` | `ProductService.list` (Mockito) | **B5 ✅ 회귀**: 1-based 첫 페이지가 P1~P5 반환(이전엔 P6~P10 로 건너뜀), 둘째 페이지 P6~P10, 범위 밖 빈 결과 |
 | `EcommerceApplicationTests` | 스프링 컨텍스트 | 전체 빈 배선 스모크(`@ActiveProfiles("test")`) |
 
 테스트는 **인메모리 H2 프로파일**(`src/test/resources/application-test.yml` — `jdbc:h2:mem:testdb`,
 `ddl-auto: create-drop`)로 돌아 운영 파일 DB(`~/legacyshopdb`)를 건드리지 않는다. 단위 테스트는
 순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표 중 `InventoryServiceTest`(5개)는 B1, `CartServiceTest`·
-`CouponServiceTest` 는 B2·B4 수정의 회귀이고(단언을 같은 커밋에서 뒤집음), 그리고 이 모듈은 추가로
-`repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **49개** =
-characterization 28 + 버그수정 회귀 9(B1 `InventoryServiceTest` 5 + BT1 batch `SettlementJobTest`·
-`DailySalesAggregationJobTest` 4; B2·B3·B4·B6 는 기존 characterization 단언을 뒤집어 흡수) + 보안 회귀 12(E1
-`ProductSearchDaoTest` 3 + admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6).
+`CouponServiceTest` 는 B2·B4 수정의 회귀이고(단언을 같은 커밋에서 뒤집음), `ProductServiceTest`(3개)는 B5 페이징
+회귀이며, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다.
+모노레포 전체는 **57개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
+`SettlementJobTest`·`DailySalesAggregationJobTest` 5 + B5 core-framework `PageRequestDtoTest` 4·ecommerce `ProductServiceTest` 3;
+B2·B3·B4·B6 는 기존 characterization 단언을 뒤집어 흡수) + 보안 회귀 12(E1 `ProductSearchDaoTest` 3 +
+admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6).
 
 ## 의존성 / 기동 순서
 

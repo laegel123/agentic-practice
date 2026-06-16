@@ -7,4 +7,9 @@ dependencies {
     implementation 'org.springframework.data:spring-data-jpa'
     implementation 'jakarta.persistence:jakarta.persistence-api'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // 테스트 (검증 루프) — 버전은 Spring Boot BOM 이 관리. PageRequestDto 등은 순수 POJO 라 JUnit5 만.
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

@@ -23,10 +23,11 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```powershell
 .\gradlew.bat :core-framework:build    # 빌드 (라이브러리 jar)
-.\gradlew.bat :core-framework:test     # 테스트 — 현재 테스트 소스 없음
+.\gradlew.bat :core-framework:test     # 테스트 — PageRequestDtoTest (B5 회귀: getOffset (page-1)*size)
 ```
 
 > 실행(`bootRun`) 대상이 아니다. 다른 모듈에 링크되는 라이브러리 jar 일 뿐이다.
+> 테스트 의존성은 순수 POJO 검증용 JUnit5 + AssertJ 만 둔다(Spring Test 불필요).
 
 ## 구조 한눈에
 
@@ -50,7 +51,7 @@ src/main/java/com/legacy/shop/core/
 | `BusinessException` | 업무 예외 | `RuntimeException` 상속, throws 불필요 |
 | `ApiResponse<T>` | 공통 응답 | DTO=record 컨벤션과 달리 **가변 클래스+setter**(jackson 역직렬화용). 성공 코드 `"0000"` 은 enum 밖 리터럴 |
 | `GlobalExceptionHandler` | 전역 예외 처리 | `handleEtc()` 가 예외를 **로그 없이** 일괄 500 으로 삼킴(R4). `ErrorCode.INTERNAL_ERROR` 대신 문자열 하드코딩 |
-| `PageRequestDto` | 페이징 요청 | `getOffset()` 이 `page*size` → 1-based page 에서 첫 페이지 건너뜀(B5) |
+| `PageRequestDto` | 페이징 요청 | ✅ `getOffset()` `(page-1)*size`(B5 수정; 이전 `page*size` 라 1-based 첫 페이지 건너뜀). `PageRequestDtoTest` 회귀 |
 
 ## 이 모듈에서 일할 때 주의점
 
@@ -61,8 +62,9 @@ src/main/java/com/legacy/shop/core/
 - **응답은 항상 `ApiResponse`.** 성공은 `ApiResponse.success(data)`(코드 `"0000"`), 실패는 컨트롤러에서
   직접 만들지 말고 `BusinessException` 을 던져 `GlobalExceptionHandler` 가 변환하게 둔다.
 - ⚠️ 아래는 known-issues 등록 결함이다. **새 코드에서 모방하지 말고**, 손대는 김에 (테스트 선행 후) 개선한다.
-  - **B5 — 페이징 오프셋 오류**: `PageRequestDto.getOffset()` 이 `page*size`. page 가 1-based 라 첫
-    페이지를 건너뛴다(`(page-1)*size` 가 맞다).
+  - **B5 — 페이징 오프셋 오류 ✅ 수정됨(2026-06-16)**: (이전) `PageRequestDto.getOffset()` 이 `page*size`
+    라 1-based page 에서 첫 페이지를 통째로 건너뜀 → **`(page-1)*size`** 로 교체(첫 페이지 offset 0). 회귀 테스트
+    `PageRequestDtoTest`(core-framework 첫 테스트) + `ProductServiceTest`(첫 페이지 반환). 새 페이징 코드도 이 규약을 따른다.
   - **R4 — 예외 삼킴**: `GlobalExceptionHandler.handleEtc()` 가 비즈니스 외 예외를 **로그 없이** 500 으로
     내린다. 원인 추적 불가 — 개선 시 로깅(SLF4J)을 넣고 `ErrorCode.INTERNAL_ERROR` 를 쓴다.
   - **단일 `ErrorCode` enum**: 모든 모듈 코드가 한 enum 에 몰려 비대·드리프트 위험. PM002

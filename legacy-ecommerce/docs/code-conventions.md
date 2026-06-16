@@ -81,8 +81,9 @@ public class CouponService {
 
 - `MoneyUtils` — 금액 계산. `round`, `applyTax`, `taxOf`, `multiply`, `discount`, `format`, 상수 `TAX_RATE=0.1`.
   - ✅ `MoneyUtils.round()` 는 소수 둘째자리 **반올림(HALF_UP)** 이다(B3 수정 2026-06-16; 이전엔 `Math.floor` 버림).
-- `DateUtils` — 시각. `now()` 는 **UTC** `LocalDateTime`(주문/환불 시각 저장용), `localToday()` 는 **서버 로컬** `LocalDate`(집계/조회용).
-  - ⚠️ 같은 유틸 안에서 UTC와 서버 로컬을 혼용한다. 또 `SDF` 가 thread-unsafe 한 static `SimpleDateFormat` 이다.
+- `DateUtils` — 시각. `now()` 는 **UTC** `LocalDateTime`(주문/환불 시각 저장용), `localToday()` 는 **서버 로컬** `LocalDate`(쿠폰 만료 등 달력 날짜용).
+  - ⚠️ UTC 로 저장된 주문 시각을 집계할 때는 `localToday()`(서버 로컬)로 비교하지 말 것 — 기준이 어긋나 자정 부근에서 날짜가 틀어진다(B7). 그런 집계는 **UTC 기준 날짜**(예: 주입 `Clock` 의 `LocalDate.now(clock)`, `clock=Clock.systemUTC()`)를 쓴다. ✅ `DailySalesAggregationJob` 은 그렇게 수정됨.
+  - ⚠️ `SDF` 가 thread-unsafe 한 static `SimpleDateFormat` 이다(R3).
 - `StringUtils.isBlank` 등 — 입력 검증 보조.
 
 ⚠️ **로직 복제 금지**: `admin` 의 `AdminPriceCalculator` 처럼 `PricingService` 계산식을 복사해 둔 사례가 있다. 새 코드에서는 계산 로직을 한 곳(`MoneyUtils`/`PricingService`)에 모은다.
@@ -90,7 +91,7 @@ public class CouponService {
 ## 페이징
 
 - `core-framework` 의 `PageRequestDto`(page는 **1-based**, 기본 size 20)를 컨트롤러 파라미터로 받는다.
-- ⚠️ `getOffset()` 이 `page * size` 라 1-based 기준에서 오프셋이 어긋난다. size 상한도 강제하지 않는다.
+- ✅ `getOffset()` 은 `(page-1)*size` 다(B5 수정 2026-06-16; 이전 `page*size` 라 첫 페이지를 건너뜀). 첫 페이지(page=1) offset 0. ⚠️ size 상한은 여전히 강제하지 않는다.
 
 ## 로깅
 

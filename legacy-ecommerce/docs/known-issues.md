@@ -15,9 +15,9 @@
 | B2 | `ecommerce/service/CartService.java` — `cartTotal()` | ✅ **수정됨(2026-06-16).** (이전) `total += unitPrice` 로 수량을 무시해 합계 과소 계산 → **`MoneyUtils.multiply(unitPrice, quantity)` 합산**으로 교체. 회귀: `CartServiceTest` 단언 30→80 으로 뒤집음. | 중간 |
 | B3 | `common-util/util/MoneyUtils.java` — `round()` | ✅ **수정됨(2026-06-16).** (이전) `Math.floor` 버림(주석은 "반올림 의도") → **`BigDecimal.setScale(2, HALF_UP)` 반올림**으로 교체(새 의존성 0개). 회귀: `MoneyUtilsTest` 의 버림 단언을 반올림으로 뒤집음(셋째자리·`taxOf(99.99)→10.00`+경계 0.005/0.004). `PricingService` 산출값은 전부 정확히 떨어져 영향 없음. ⚠ `admin/AdminPriceCalculator`(R6 복붙)는 여전히 floor — 분기 확대(아래 R6). | 중간 |
 | B4 | `ecommerce/service/CouponService.java` — `getValidCoupon()` | ✅ **수정됨(2026-06-16).** (이전) `!expiryDate.isAfter(today)` 로 만료일 당일 거부(off-by-one) → **`expiryDate.isBefore(today)`** 로 교체(만료일 당일 포함 유효, `Coupon.expiryDate` 주석과 일치). 회귀: `CouponServiceTest` 의 당일 거부 단언을 유효로 뒤집음. | 중간 |
-| B5 | `core-framework/web/PageRequestDto.java` — `getOffset()` | `page * size` 인데 page가 1-based → 첫 페이지를 건너뛰는 오프셋 오류. | 중간 |
+| B5 | `core-framework/web/PageRequestDto.java` — `getOffset()` | ✅ **수정됨(2026-06-16).** (이전) `page * size` 인데 page가 1-based → 첫 페이지를 통째로 건너뜀 → **`(page-1)*size`** 로 교체(첫 페이지 offset 0). 회귀: `PageRequestDtoTest`(core-framework 첫 테스트, 4개) + `ProductServiceTest`(첫 페이지 반환, 3개). | 중간 |
 | B6 | `payment/service/RefundService.java` — `refund()` | ✅ **수정됨(2026-06-16).** (이전) 환불 누계가 결제액을 초과해도 막지 않아 과다 환불 가능(`REFUND_EXCEEDS_PAYMENT` PM002 정의만 되고 미사용). → **환불 전 `기존 누계 + 이번 환불 > 결제액` 이면 `BusinessException(REFUND_EXCEEDS_PAYMENT)` throw**(환불/원장 미기록). 회귀 테스트 `RefundServiceTest.overRefund_isBlocked_throwsRefundExceedsPayment`(단언을 허용→차단으로 뒤집음). | 높음 |
-| B7 | `common-util/util/DateUtils.java` + `batch/job/DailySalesAggregationJob.java` | 주문 시각은 `now()`=**UTC** 로 저장되는데 집계는 `LocalDate.now()`=**서버 로컬**로 비교 → 자정 부근 날짜 경계에서 집계 누락/중복. | 중간 |
+| B7 | `common-util/util/DateUtils.java` + `batch/job/DailySalesAggregationJob.java` | ✅ **수정됨(2026-06-16).** (이전) 주문 시각은 `now()`=**UTC** 로 저장되는데 집계는 `LocalDate.now()`=**서버 로컬**로 비교 → 자정 부근 날짜 경계에서 집계 누락/중복 → **집계 '오늘'을 주입된 `Clock`(기본 `Clock.systemUTC()`) 기준 UTC 날짜로 통일**(주문 시각과 같은 기준). `BatchApplication` 에 `@Bean Clock` 추가, `DailySalesAggregationJob` 생성자에 `Clock` 주입(단일 생성자 유지). `DateUtils.localToday()` 코드는 유지(쿠폰 만료 등 달력 날짜용)하되 주석에 "UTC 주문 시각 집계에 쓰지 말 것" 명시. 회귀: `DailySalesAggregationJobTest` 에 고정 Clock 기반 UTC 일경계 테스트 추가. | 중간 |
 
 ## ⚠️ 위험 · 안티패턴
 
@@ -70,7 +70,7 @@
    ✅ **완료** (2026-06-12): `common-util`/`ecommerce-service`/`payment-service`에 28개 테스트. B1·B2·B3·B4·B6의
    현재 동작이 고정되어 있다. 이제 아래 수정은 해당 단언을 같은 커밋에서 뒤집으며 진행한다.
 2. **보안 최우선** (모듈 발견) — **3건 모두 ✅ 완료(2026-06-15)**: ~~E1(SQL 인젝션)~~ 파라미터 바인딩 + `ProductSearchDaoTest`. ~~A1(무인증 환불)~~ `AdminAuth` 주입 + `X-Admin-Token` 검사 + `AdminRefundControllerTest`. ~~CU1(MD5 해시)~~ PBKDF2(임의 salt)+레거시 MD5 검증 폴백(점진 마이그레이션) + `CryptoUtilsTest`.
-3. **고영향·저위험 버그 — 전부 ✅ 완료(2026-06-16)**: ~~B1(재고 이중차감)~~ `confirm` 비차감 + `InventoryServiceTest`, ~~B6(과다환불)~~ 한도 검증 + `RefundServiceTest` 단언 뒤집음, ~~B2(장바구니 수량무시)~~ `MoneyUtils.multiply` 합산 + `CartServiceTest` 단언 뒤집음, ~~B3(round 버림)~~ `BigDecimal` HALF_UP + `MoneyUtilsTest` 단언 뒤집음, ~~B4(쿠폰 off-by-one)~~ `isBefore` + `CouponServiceTest` 단언 뒤집음, ~~BT1(취소주문 매출)~~ `CANCELLED` 필터 + batch 첫 테스트(`SettlementJobTest`·`DailySalesAggregationJobTest`). **남은 고영향 버그**: B5(페이지 오프셋), B7(집계 타임존).
+3. **고영향·저위험 버그 — 전부 ✅ 완료(2026-06-16)**: ~~B1(재고 이중차감)~~ `confirm` 비차감 + `InventoryServiceTest`, ~~B6(과다환불)~~ 한도 검증 + `RefundServiceTest` 단언 뒤집음, ~~B2(장바구니 수량무시)~~ `MoneyUtils.multiply` 합산 + `CartServiceTest` 단언 뒤집음, ~~B3(round 버림)~~ `BigDecimal` HALF_UP + `MoneyUtilsTest` 단언 뒤집음, ~~B4(쿠폰 off-by-one)~~ `isBefore` + `CouponServiceTest` 단언 뒤집음, ~~BT1(취소주문 매출)~~ `CANCELLED` 필터 + batch 첫 테스트(`SettlementJobTest`·`DailySalesAggregationJobTest`), ~~B5(페이지 오프셋)~~ `(page-1)*size` + `PageRequestDtoTest`(core-framework 첫 테스트)·`ProductServiceTest`, ~~B7(집계 타임존)~~ UTC `Clock` 주입으로 집계 기준 통일 + `DailySalesAggregationJobTest` UTC 일경계 회귀. **→ 정합성 버그·고영향 버그 전부 완료.**
 4. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거 — B3 이후 admin floor 분기 해소 포함), CU2(JSON 오류처리).
 5. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO), BT2(enum 동기화).
-6. **대형 과제**: BigDecimal 전환, DB 구조, 설정 외부화(R5), B7 타임존 정리.
+6. **대형 과제**: BigDecimal 전환, DB 구조, 설정 외부화(R5). (B7 타임존은 ✅ 3단계에서 완료.)

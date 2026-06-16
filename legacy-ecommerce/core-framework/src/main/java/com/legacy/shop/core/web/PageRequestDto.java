@@ -24,8 +24,8 @@ public class PageRequestDto {
         this.size = size;
     }
 
-    /** 조회 시작 위치. */
+    /** 조회 시작 위치. page 는 1-based 이므로 첫 페이지(page=1)의 offset 은 0 이다. */
     public int getOffset() {
-        return page * size;
+        return (page - 1) * size;
     }
 }

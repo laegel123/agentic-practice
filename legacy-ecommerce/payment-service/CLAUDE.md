@@ -84,8 +84,9 @@ src/main/java/com/legacy/shop/payment/
   - **금액 `double`(B3 / [ADR-0003](../docs/adr/0003-money-as-double.md))**: `amount`·원장·환불 누계 비교가
     전부 `double`. `refundedTotal >= payment.getAmount()` 같은 누적 비교에 부동소수 오차가 끼어들 수 있다.
     금액을 새로 다룰 때 임의 반올림을 끼워넣지 말고 기존 정책을 따른다.
-  - **시각은 UTC**: `approvedAt`/`refundedAt` 는 `DateUtils.now()`(=**UTC**)로 찍힌다. ecommerce 의 집계
-    타임존 혼용(B7)·`DateUtils` 의 thread-unsafe `SimpleDateFormat`(R3)과 같은 뿌리다 — 새 시각 처리에서 답습 금지.
+  - **시각은 UTC**: `approvedAt`/`refundedAt` 는 `DateUtils.now()`(=**UTC**)로 찍힌다. batch 집계 타임존 혼용은
+    ✅ B7 수정(집계 측을 UTC `Clock` 기준으로 통일)으로 해소됐다 — UTC 저장 시각을 집계할 땐 UTC 기준 날짜를 쓴다.
+    `DateUtils` 의 thread-unsafe `SimpleDateFormat`(R3)은 미해결 — 새 시각 처리에서 답습 금지.
   - **요청 검증 없음**: `validation` 스타터가 없어 `@RequestBody` 가 검증되지 않는다. 음수/`null`
     `amount` 같은 입력도 그대로 통과한다. `charge` 는 외부 PG 연동 없이 **항상 `APPROVED`** 를 반환하는
     스텁이다(실패 경로·멱등키 없음). 입력 검증을 추가할 때는 위 known-issues 와 동일하게 테스트로 현재 동작을 고정한 뒤 바꾼다.
