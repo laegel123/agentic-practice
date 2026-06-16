@@ -1,11 +1,12 @@
 package com.legacy.shop.batch.job;
 
 import com.legacy.shop.batch.domain.OrderRow;
+import com.legacy.shop.batch.domain.OrderStatus;
 import com.legacy.shop.batch.repository.OrderRowRepository;
 import org.springframework.stereotype.Component;
 
 /**
- * 정산 잡: 전체 주문의 매출 합계를 낸다.
+ * 정산 잡: 취소되지 않은 주문의 매출 합계를 낸다.
  */
 @Component
 public class SettlementJob {
@@ -19,6 +20,9 @@ public class SettlementJob {
     public double settle() {
         double revenue = 0;
         for (OrderRow o : orderRowRepository.findAll()) {
+            if (o.getStatus() == OrderStatus.CANCELLED) {
+                continue; // 취소 주문은 매출에서 제외 (BT1)
+            }
             revenue += o.getTotalAmount();
         }
         System.out.println("[정산] 총 매출 = " + revenue);

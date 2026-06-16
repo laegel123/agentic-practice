@@ -23,7 +23,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :ecommerce-service:build      # 빌드
 .\gradlew.bat :ecommerce-service:bootRun     # 실행 (:8081)
-.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart·Coupon·Order·Inventory) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀)
+.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart[B2]·Coupon[B4]·Order·Inventory[B1]) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀)
 ```
 
 > 테스트는 **현재 동작(버그 포함)을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ,
@@ -46,10 +46,10 @@ src/main/java/com/legacy/shop/ecommerce/
 │   └── OrderController           /api/orders
 ├── service/                      비즈니스 로직 (7개)
 │   ├── OrderService              주문 오케스트레이션      (⚠ God method R1)
-│   ├── CartService               장바구니                (⚠ cartTotal 수량 무시 B2)
+│   ├── CartService               장바구니                (B2 ✅ cartTotal 수량 반영 수정)
 │   ├── InventoryService          재고 reserve(차감)/confirm(검증만)/restore(복원) (B1 ✅ 이중차감 수정)
 │   ├── PricingService            소계→할인→세금→합계 → PricingResult
-│   ├── CouponService             쿠폰 검증               (⚠ 만료 당일 거부 B4)
+│   ├── CouponService             쿠폰 검증               (B4 ✅ 만료 당일 포함 수정)
 │   ├── ProductService            상품 조회/검색/등록
 │   └── CustomerService           고객 조회/가입
 ├── domain/                       JPA 엔티티 8 + OrderStatus enum (DB 스키마 소유)
@@ -81,9 +81,9 @@ src/main/java/com/legacy/shop/ecommerce/
   엔티티는 `BaseTimeEntity` 상속·`@GeneratedValue(IDENTITY)`·`@Enumerated(STRING)`, 응답은
   `ApiResponse<T>`(성공 `code="0000"`), 오류는 `throw new BusinessException(ErrorCode.X)`.
   금액 계산은 복제하지 말고 `PricingService`/`MoneyUtils` 를 재사용한다.
-- ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.** B2·B4 와 가격 계산은 이미
+- ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말 것.** 가격 계산 등은 이미
   characterization 테스트가 현재 동작을 박제하고 있으니, 고칠 때는 같은 커밋에서 단언을 뒤집는다.
-  (B1 재고 이중차감은 ✅ 2026-06-16 수정됨 — 아래 참조.)
+  (B1·B2·B4 는 ✅ 2026-06-16 수정됨 — 아래 참조.)
   - **E1 — SQL 인젝션 ✅ 수정됨(2026-06-15)**: `ProductSearchDao.searchByName` 이 검색어를 native SQL 에
     문자열로 이어붙이던 것을 named parameter(`:keyword`) 바인딩으로 교체했다. 회귀 테스트
     `ProductSearchDaoTest`(정상 검색 보존 + 인젝션 페이로드 차단). 새 native 쿼리도 **반드시 파라미터
@@ -92,14 +92,16 @@ src/main/java/com/legacy/shop/ecommerce/
     **동일하게 차감**해 `OrderService.placeOrder` 가 둘 다 호출하면 주문 1건당 재고 2배 차감. → **`confirm()`
     은 더 이상 차감하지 않고 존재 검증만**(reserve 단계에서 1회만 차감). 회귀 테스트 `InventoryServiceTest`(reserve
     차감·confirm 불변·reserve→confirm 단일차감·미존재 예외·restore 복원).
-  - **B2 — 장바구니 합계**: `CartService.cartTotal()` 이 수량을 무시(`total += unitPrice`).
-  - **B4 — 쿠폰 off-by-one**: `CouponService` 가 만료일 당일 쿠폰을 거부(주석 "당일 포함"과 모순).
+  - **B2 — 장바구니 합계 ✅ 수정됨(2026-06-16)**: (이전) `CartService.cartTotal()` 이 수량을 무시(`total += unitPrice`)
+    → **`MoneyUtils.multiply(unitPrice, quantity)` 합산**. 회귀 `CartServiceTest`(30→80 으로 단언 뒤집음).
+  - **B4 — 쿠폰 off-by-one ✅ 수정됨(2026-06-16)**: (이전) 만료일 당일 거부 → **`expiryDate.isBefore(today)`** 로
+    교체해 만료일 당일 포함 유효(주석과 일치). 회귀 `CouponServiceTest`(당일 거부→유효로 단언 뒤집음).
   - **R1 — God method**: `OrderService.placeOrder` 가 재고/주문/쿠폰/가격/결제/장바구니/알림 7책임을
     한 `@Transactional` 에서 처리. **R2 — raw Map** HTTP(`PaymentClient`), [ADR-0005](../docs/adr/0005-map-based-inter-service-http.md).
-- 금액은 전사적으로 `double` 로 다루며 `MoneyUtils.round` 를 거친다(현재 **버림** = B3,
-  [ADR-0003](../docs/adr/0003-money-as-double.md)). `System.out.println`(C1)은 SLF4J 로 교체 대상.
+- 금액은 전사적으로 `double` 로 다루며 `MoneyUtils.round` 를 거친다(**B3 ✅ 수정으로 이제 HALF_UP 반올림**;
+  근본 해결은 `BigDecimal` 전환 [ADR-0003](../docs/adr/0003-money-as-double.md)). `System.out.println`(C1)은 SLF4J 로 교체 대상.
 
 ## 더 읽기
 
 - 이 모듈: [`docs/architecture.md`](./docs/architecture.md) — 도메인 모델·주문 흐름 7단계·설정·시딩·테스트 루프 상세
-- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1 ✅·B1 ✅**·B2·B4·R1·R2·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)
+- 모노레포 공통: [`../docs/architecture.md`](../docs/architecture.md) · [`../docs/code-conventions.md`](../docs/code-conventions.md) · [`../docs/known-issues.md`](../docs/known-issues.md)(ecommerce 항목 **E1 ✅·B1 ✅·B2 ✅·B4 ✅**·R1·R2·R7·R8·C1) · [`../docs/adr/`](../docs/adr/)

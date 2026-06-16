@@ -19,7 +19,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```powershell
 .\gradlew.bat :common-util:build    # 빌드 (라이브러리 jar)
-.\gradlew.bat :common-util:test     # 테스트 — MoneyUtilsTest(B3 등 characterization) + CryptoUtilsTest(CU1 보안 회귀)
+.\gradlew.bat :common-util:test     # 테스트 — MoneyUtilsTest(B3 회귀: round HALF_UP) + CryptoUtilsTest(CU1 보안 회귀)
 ```
 
 > 실행(`bootRun`) 대상이 아니다. 다른 모듈에 링크되는 라이브러리 jar 일 뿐이다.
@@ -28,7 +28,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 
 ```
 src/main/java/com/legacy/shop/common/util/
-├── MoneyUtils       금액 계산  — round/applyTax/taxOf/multiply/discount/format, 상수 TAX_RATE=0.1
+├── MoneyUtils       금액 계산  — round(HALF_UP ✅B3)/applyTax/taxOf/multiply/discount/format, 상수 TAX_RATE=0.1
 ├── DateUtils        날짜/시각  — format/parse/today/now(UTC)/localToday(서버로컬), static SDF
 ├── StringUtils      문자열     — isEmpty/isBlank/nvl/maskCard/join
 ├── CryptoUtils      해시       — hashPassword/verifyPassword/needsRehash (PBKDF2+salt; md5 레거시 폴백) ✅CU1
@@ -38,7 +38,7 @@ src/main/java/com/legacy/shop/common/util/
 
 | 클래스 | 책임 | ⚠️ 함정 |
 |--------|------|---------|
-| `MoneyUtils` | 금액 계산(`double`) | `round()` 가 `Math.floor` **버림**(B3) |
+| `MoneyUtils` | 금액 계산(`double`) | ✅ `round()` `BigDecimal` **HALF_UP 반올림**(B3 수정; 이전 `Math.floor` 버림) |
 | `DateUtils` | 날짜·시각 변환 | `now()`=UTC vs `localToday()`=서버로컬 혼용(B7), static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
 | `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) |
 | `CryptoUtils` | 비밀번호 해시 | ✅ PBKDF2+임의 salt (CU1 수정; 레거시 MD5 검증 폴백) |
@@ -52,7 +52,9 @@ src/main/java/com/legacy/shop/common/util/
 - **재발명 금지**: 이미 `commons-lang3` 와 jackson 을 의존한다. `StringUtils` 가 `isEmpty`/`isBlank`
   같은 commons-lang3 기능을 다시 만든 사례가 있으니 모방하지 말고 기존 라이브러리를 쓴다.
 - ⚠️ 아래는 알려진 결함이다. **새 코드에서 모방하지 말고**, 손대는 김에 (테스트 선행 후) 개선한다.
-  - `MoneyUtils.round()` 이름과 달리 **버림**(B3) — 모든 금액 계산이 이 함수를 거친다.
+  - `MoneyUtils.round()` 는 ✅ **B3 수정으로 HALF_UP 반올림**(이전엔 이름과 달리 버림). 모든 금액 계산이 이 함수를
+    거치므로 파급이 크다 — `PricingService` 산출값은 정확히 떨어져 영향 없으나, `admin/AdminPriceCalculator`(R6 복붙)는
+    아직 `Math.floor` 라 분기. (모방 금지 대상 아님.)
   - `DateUtils` UTC/로컬 혼용(B7) · static `SimpleDateFormat`(R3) · `parse()` null 반환(C4).
   - `JsonUtils` 오류 처리 비일관(CU2). (`CryptoUtils` CU1 은 ✅ PBKDF2+임의 salt 로 수정됨 — 모방 금지 대상 아님.)
   - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md)(**CU1·CU2·CU3**).

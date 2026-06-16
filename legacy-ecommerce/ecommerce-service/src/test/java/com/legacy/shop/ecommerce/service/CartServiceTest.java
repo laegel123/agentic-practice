@@ -11,10 +11,10 @@ import static org.assertj.core.api.Assertions.within;
 import static org.mockito.Mockito.mock;
 
 /**
- * CartService.cartTotal 의 현재 동작 고정.
+ * CartService.cartTotal 의 동작 고정.
  *
- * 주의: cartTotal 은 unitPrice 만 더하고 quantity 를 무시한다(버그). 아래 단언은 그 현재 동작을
- * 박제한다 — 수량을 반영하도록 고치면 같은 커밋에서 단언을 뒤집어야 한다. (docs/known-issues.md B2)
+ * B2 수정(2026-06-16): cartTotal 이 이제 단가 × 수량의 합을 낸다(이전에는 unitPrice 만 더해 수량을
+ * 무시했다). 아래 단언은 수정된 동작(라인 합계 합산)을 박제한다. (docs/known-issues.md B2)
  */
 class CartServiceTest {
 
@@ -27,13 +27,13 @@ class CartServiceTest {
             mock(InventoryService.class));
 
     @Test
-    void cartTotal_ignoresQuantity_sumsUnitPriceOnly() {
+    void cartTotal_usesQuantity_sumsLineTotals() {
         Cart cart = new Cart();
         cart.addItem(new CartItem(1L, 2, 10.0));  // 수량 2
         cart.addItem(new CartItem(2L, 3, 20.0));  // 수량 3
 
-        // 수량을 반영하면 10*2 + 20*3 = 80.0 이어야 하지만, 현재는 unitPrice 합만 → 30.0.
-        assertThat(cartService.cartTotal(cart)).isCloseTo(30.0, within(EPS));
+        // 단가 × 수량의 합: 10*2 + 20*3 = 80.0 (B2 수정 전에는 수량 무시로 30.0 이었다).
+        assertThat(cartService.cartTotal(cart)).isCloseTo(80.0, within(EPS));
     }
 
     @Test

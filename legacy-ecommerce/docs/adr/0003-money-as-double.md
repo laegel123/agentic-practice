@@ -24,9 +24,10 @@
 
 - (+) 코드가 짧고 산술이 직관적이다.
 - (−) **부동소수 오차**: 세금/할인/합계 누적에서 미세 오차가 발생할 수 있다.
-- (−) `MoneyUtils.round()` 가 이름과 달리 `Math.floor`(버림)로 동작해, 의도(반올림)와 실제가
-  어긋난다([known-issues.md](../known-issues.md) B3).
-- (−) `admin` 의 `AdminPriceCalculator` 가 같은 계산식을 복붙해(R6) 정밀도 정책이 분산된다.
+- (~) ✅ **B3 해결됨(2026-06-16)**: `MoneyUtils.round()` 가 `Math.floor`(버림) → `BigDecimal.setScale(2, HALF_UP)`
+  반올림으로 교체됐다(`MoneyUtilsTest` 회귀). 다만 값은 여전히 `double` 이라 부동소수 오차의 근본 해결은 아니다.
+  [known-issues.md](../known-issues.md) B3.
+- (−) `admin` 의 `AdminPriceCalculator` 가 같은 계산식을 복붙해(R6) 정밀도 정책이 분산된다. ⚠ B3 이후로는
+  `MoneyUtils`(반올림)와 이 복붙본(`Math.floor` 버림)이 **반올림 방식까지 달라** ±0.01 어긋날 수 있다.
 - **재검토 트리거**: 정산/회계 정합성 요구가 커지는 시점. 근본 해결은 금액 타입을 `BigDecimal`
-  로 전환하는 것이며, 이는 엔티티·DTO·DB 컬럼·직렬화까지 파급되는 대형 과제다. 그 전 완화책으로
-  `MoneyUtils.round()` 의 반올림 버그부터 테스트와 함께 바로잡는다.
+  로 전환하는 것이며, 이는 엔티티·DTO·DB 컬럼·직렬화까지 파급되는 대형 과제다(완화책인 round 반올림은 ✅ 완료).

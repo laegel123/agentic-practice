@@ -174,17 +174,18 @@ payment:
 |--------|------|--------------------|
 | `service/OrderServiceTest` | `OrderService.placeOrder` (협력자 7개 Mockito mock) | `reserve`·`confirm` 모두 호출(R1 안전망; confirm 은 B1 수정 후 비차감), 결제 실패 시 `confirm` 미호출·장바구니 유지, 빈 장바구니 → `EMPTY_CART` |
 | `service/InventoryServiceTest` | `InventoryService.reserve/confirm/restore` | **B1 ✅ 회귀**: reserve 차감·confirm 불변·reserve→confirm 단일차감(50→48, 이전 46)·미존재 예외·restore 복원 |
-| `service/CartServiceTest` | `CartService.cartTotal` | 수량 무시(10×2 + 20×3 이지만 결과 30.0 = unitPrice 합, ⚠ B2) |
-| `service/CouponServiceTest` | `CouponService.getValidCoupon` | 만료일 **당일 거부**(⚠ B4), 익일 유효/전일 만료/미존재/빈 코드 |
-| `service/PricingServiceTest` | `PricingService.calculate` | 소계=Σ(단가×수량), 세금 10%, 쿠폰 최소주문 조건, `round`(버림) |
+| `service/CartServiceTest` | `CartService.cartTotal` | **B2 ✅ 회귀**: 단가×수량 합산(10×2 + 20×3 = 80.0, 이전 30.0), 빈 장바구니 0 |
+| `service/CouponServiceTest` | `CouponService.getValidCoupon` | **B4 ✅ 회귀**: 만료일 **당일 유효**(이전 거부), 익일 유효/전일 만료/미존재/빈 코드 |
+| `service/PricingServiceTest` | `PricingService.calculate` | 소계=Σ(단가×수량), 세금 10%, 쿠폰 최소주문 조건, `round`(B3 ✅ 이제 HALF_UP — 이 시나리오들은 정확히 떨어져 값 불변) |
 | `EcommerceApplicationTests` | 스프링 컨텍스트 | 전체 빈 배선 스모크(`@ActiveProfiles("test")`) |
 
 테스트는 **인메모리 H2 프로파일**(`src/test/resources/application-test.yml` — `jdbc:h2:mem:testdb`,
 `ddl-auto: create-drop`)로 돌아 운영 파일 DB(`~/legacyshopdb`)를 건드리지 않는다. 단위 테스트는
-순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표 중 `InventoryServiceTest`(5개)는 B1 수정의 회귀이고
-나머지는 characterization, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀,
-`@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **45개** = characterization 28 + 버그수정 회귀 5(B1
-`InventoryServiceTest`; B6 는 `RefundServiceTest` 단언을 차단으로 뒤집어 흡수) + 보안 회귀 12(E1
+순수 Mockito 라 컨텍스트를 띄우지 않는다. 위 표 중 `InventoryServiceTest`(5개)는 B1, `CartServiceTest`·
+`CouponServiceTest` 는 B2·B4 수정의 회귀이고(단언을 같은 커밋에서 뒤집음), 그리고 이 모듈은 추가로
+`repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)를 둔다. 모노레포 전체는 **49개** =
+characterization 28 + 버그수정 회귀 9(B1 `InventoryServiceTest` 5 + BT1 batch `SettlementJobTest`·
+`DailySalesAggregationJobTest` 4; B2·B3·B4·B6 는 기존 characterization 단언을 뒤집어 흡수) + 보안 회귀 12(E1
 `ProductSearchDaoTest` 3 + admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6).
 
 ## 의존성 / 기동 순서

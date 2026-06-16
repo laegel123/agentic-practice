@@ -1,5 +1,8 @@
 package com.legacy.shop.common.util;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 /**
  * 금액 계산 유틸. 시스템 전반에서 금액을 double 로 다룬다.
  */
@@ -12,11 +15,13 @@ public class MoneyUtils {
     }
 
     /**
-     * 금액을 소수 둘째자리로 정리한다.
-     * (원래 의도는 반올림인데 지금은 버림으로 동작한다)
+     * 금액을 소수 둘째자리로 반올림한다(HALF_UP).
+     * double 곱셈의 표현 오차를 피하려고 BigDecimal 로 정리한다.
      */
     public static double round(double amount) {
-        return Math.floor(amount * 100) / 100.0;
+        return BigDecimal.valueOf(amount)
+                .setScale(2, RoundingMode.HALF_UP)
+                .doubleValue();
     }
 
     public static double applyTax(double amount) {

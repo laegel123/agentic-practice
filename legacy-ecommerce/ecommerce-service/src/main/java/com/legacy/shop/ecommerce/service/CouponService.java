@@ -27,8 +27,8 @@ public class CouponService {
         Coupon coupon = couponRepository.findByCode(code)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COUPON_NOT_FOUND));
 
-        // 만료 검사: 만료일이 오늘 '이후'가 아니면 만료 처리한다.
-        if (!coupon.getExpiryDate().isAfter(DateUtils.localToday())) {
+        // 만료 검사: 만료일은 '당일 포함' 유효. 만료일이 오늘보다 이전일 때만 만료 처리한다.
+        if (coupon.getExpiryDate().isBefore(DateUtils.localToday())) {
             throw new BusinessException(ErrorCode.COUPON_EXPIRED);
         }
         return coupon;

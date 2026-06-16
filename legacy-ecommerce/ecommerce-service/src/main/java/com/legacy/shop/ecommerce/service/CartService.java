@@ -1,5 +1,6 @@
 package com.legacy.shop.ecommerce.service;
 
+import com.legacy.shop.common.util.MoneyUtils;
 import com.legacy.shop.core.error.BusinessException;
 import com.legacy.shop.core.error.ErrorCode;
 import com.legacy.shop.ecommerce.domain.Cart;
@@ -47,11 +48,11 @@ public class CartService {
         return cartRepository.save(cart);
     }
 
-    /** 장바구니 합계 (요약 화면 표시용). */
+    /** 장바구니 합계 (요약 화면 표시용). 품목별 단가 × 수량의 합. */
     public double cartTotal(Cart cart) {
         double total = 0;
         for (CartItem it : cart.getItems()) {
-            total += it.getUnitPrice();
+            total += MoneyUtils.multiply(it.getUnitPrice(), it.getQuantity());
         }
         return total;
     }

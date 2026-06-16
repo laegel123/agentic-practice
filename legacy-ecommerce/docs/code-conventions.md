@@ -80,7 +80,7 @@ public class CouponService {
 `common-util` 의 정적 유틸을 우선 재사용한다(새로 만들지 말 것).
 
 - `MoneyUtils` — 금액 계산. `round`, `applyTax`, `taxOf`, `multiply`, `discount`, `format`, 상수 `TAX_RATE=0.1`.
-  - ⚠️ `MoneyUtils.round()` 는 이름과 달리 `Math.floor` 로 **버림** 처리한다.
+  - ✅ `MoneyUtils.round()` 는 소수 둘째자리 **반올림(HALF_UP)** 이다(B3 수정 2026-06-16; 이전엔 `Math.floor` 버림).
 - `DateUtils` — 시각. `now()` 는 **UTC** `LocalDateTime`(주문/환불 시각 저장용), `localToday()` 는 **서버 로컬** `LocalDate`(집계/조회용).
   - ⚠️ 같은 유틸 안에서 UTC와 서버 로컬을 혼용한다. 또 `SDF` 가 thread-unsafe 한 static `SimpleDateFormat` 이다.
 - `StringUtils.isBlank` 등 — 입력 검증 보조.

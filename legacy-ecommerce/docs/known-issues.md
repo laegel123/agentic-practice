@@ -12,9 +12,9 @@
 | # | 위치 | 증상 | 영향 |
 |---|------|------|------|
 | B1 | `ecommerce/service/InventoryService.java` — `confirm()` | ✅ **수정됨(2026-06-16).** (이전) `confirm()` 이 `reserve()` 와 동일하게 재고를 또 차감 → `OrderService.placeOrder` 가 reserve(1단계)·confirm(5단계) 모두 호출해 **주문 1건당 재고 2배 차감**. → **`confirm()` 은 더 이상 차감하지 않고 존재 검증만 수행**(reserve 단계에서 이미 차감). 회귀 테스트 `InventoryServiceTest`(5개: reserve 차감·confirm 불변·reserve→confirm 단일차감·미존재 예외·restore 복원). | 높음 |
-| B2 | `ecommerce/service/CartService.java` — `cartTotal()` | `total += unitPrice` 로 **수량을 무시**한다. 장바구니 합계가 과소 계산. | 중간 |
-| B3 | `common-util/util/MoneyUtils.java` — `round()` | `Math.floor` 로 **버림**한다(주석은 "반올림 의도"라고 명시). 모든 금액 계산이 이 함수를 거친다. | 중간 |
-| B4 | `ecommerce/service/CouponService.java` — `getValidCoupon()` | `!expiryDate.isAfter(today)` → **만료일 당일에 쿠폰이 거부**된다. `Coupon.expiryDate` 주석("만료일 당일 포함")과 모순(off-by-one). | 중간 |
+| B2 | `ecommerce/service/CartService.java` — `cartTotal()` | ✅ **수정됨(2026-06-16).** (이전) `total += unitPrice` 로 수량을 무시해 합계 과소 계산 → **`MoneyUtils.multiply(unitPrice, quantity)` 합산**으로 교체. 회귀: `CartServiceTest` 단언 30→80 으로 뒤집음. | 중간 |
+| B3 | `common-util/util/MoneyUtils.java` — `round()` | ✅ **수정됨(2026-06-16).** (이전) `Math.floor` 버림(주석은 "반올림 의도") → **`BigDecimal.setScale(2, HALF_UP)` 반올림**으로 교체(새 의존성 0개). 회귀: `MoneyUtilsTest` 의 버림 단언을 반올림으로 뒤집음(셋째자리·`taxOf(99.99)→10.00`+경계 0.005/0.004). `PricingService` 산출값은 전부 정확히 떨어져 영향 없음. ⚠ `admin/AdminPriceCalculator`(R6 복붙)는 여전히 floor — 분기 확대(아래 R6). | 중간 |
+| B4 | `ecommerce/service/CouponService.java` — `getValidCoupon()` | ✅ **수정됨(2026-06-16).** (이전) `!expiryDate.isAfter(today)` 로 만료일 당일 거부(off-by-one) → **`expiryDate.isBefore(today)`** 로 교체(만료일 당일 포함 유효, `Coupon.expiryDate` 주석과 일치). 회귀: `CouponServiceTest` 의 당일 거부 단언을 유효로 뒤집음. | 중간 |
 | B5 | `core-framework/web/PageRequestDto.java` — `getOffset()` | `page * size` 인데 page가 1-based → 첫 페이지를 건너뛰는 오프셋 오류. | 중간 |
 | B6 | `payment/service/RefundService.java` — `refund()` | ✅ **수정됨(2026-06-16).** (이전) 환불 누계가 결제액을 초과해도 막지 않아 과다 환불 가능(`REFUND_EXCEEDS_PAYMENT` PM002 정의만 되고 미사용). → **환불 전 `기존 누계 + 이번 환불 > 결제액` 이면 `BusinessException(REFUND_EXCEEDS_PAYMENT)` throw**(환불/원장 미기록). 회귀 테스트 `RefundServiceTest.overRefund_isBlocked_throwsRefundExceedsPayment`(단언을 허용→차단으로 뒤집음). | 높음 |
 | B7 | `common-util/util/DateUtils.java` + `batch/job/DailySalesAggregationJob.java` | 주문 시각은 `now()`=**UTC** 로 저장되는데 집계는 `LocalDate.now()`=**서버 로컬**로 비교 → 자정 부근 날짜 경계에서 집계 누락/중복. | 중간 |
@@ -28,7 +28,7 @@
 | R3 | `common-util/util/DateUtils.java` — static `SDF` | `SimpleDateFormat` 을 static 공유 → **thread-unsafe**. | 동작보존(→ `DateTimeFormatter`) |
 | R4 | `core-framework/web/GlobalExceptionHandler.java` — `handleEtc()` | 모든 비즈니스 외 예외를 **로그 없이** 일괄 500(`C001`)으로 삼킴. 원인 추적 불가. | 대체로 동작보존(+로깅 추가) |
 | R5 | 설정 전반 (`application.yml`, `@Value` 기본값) | 서비스 URL, `admin.token`=`admin-secret`, DB 경로가 **하드코딩**. 운영 분리 불가, 토큰 노출. | 동작보존(외부화) |
-| R6 | `admin/util/AdminPriceCalculator.java` | `PricingService` 계산식을 **복붙**. 로직 이중 관리(한쪽만 고치면 불일치). | 동작보존(통합) |
+| R6 | `admin/util/AdminPriceCalculator.java` | `PricingService` 계산식을 **복붙**. 로직 이중 관리(한쪽만 고치면 불일치). ⚠ **B3 이후 분기 확대**: `MoneyUtils.round` 는 반올림(HALF_UP)으로 고쳤지만 이 복붙본은 여전히 `Math.floor`(버림) → 같은 금액도 미리보기(admin)와 실제 주문(ecommerce)이 ±0.01 어긋날 수 있다. R6 통합 시 admin 도 `MoneyUtils.round` 를 쓰도록. | 동작보존(통합) |
 | R7 | 엔티티 전반 (`Product.categoryId` 등) | FK 연관 없이 `Long` id만 보유 → 참조 무결성 없음, 고아 데이터 가능. | 동작변경(스키마 영향) |
 | R8 | `config/RestTemplateConfig.java` | `new RestTemplate()` 에 **타임아웃 미설정**. 결제 서비스 지연 시 호출 스레드 무한 대기 위험. | 동작보존 |
 
@@ -51,7 +51,7 @@
 | E1 | `ecommerce/repository/ProductSearchDao.java` — `searchByName()` | ✅ **수정됨(2026-06-15).** (이전) 검색어를 native SQL 에 문자열로 직접 이어붙여 `GET /api/products/search` 의 `keyword` 로 임의 SQL 주입 가능 → **named parameter 바인딩(`:keyword`)으로 교체**. 회귀 테스트 `ProductSearchDaoTest`(정상 검색 보존 + 인젝션 페이로드 차단). | 높음(보안) | 동작보존(파라미터 바인딩) — 완료 |
 | A1 | `admin/web/AdminRefundController.java` | ✅ **수정됨(2026-06-15).** (이전) `POST /admin/refunds` 가 다른 admin 컨트롤러와 달리 `AdminAuth` 를 주입조차 안 해 무인증으로 환불 트리거 가능 → **`AdminAuth` 주입 + `X-Admin-Token` 검사**를 다른 컨트롤러와 동일하게 추가. 회귀 테스트 `AdminRefundControllerTest`(무토큰·오토큰 401 + 게이트웨이 미호출, 유효토큰 성공) — admin 모듈 첫 테스트. | 높음(보안) | 동작변경(인증 추가) — 완료 |
 | CU1 | `common-util/util/CryptoUtils.java` — `hashPassword()` | ✅ **수정됨(2026-06-15).** (이전) MD5 + 무 salt 비밀번호 해시 → 레인보우테이블·동일비번 노출 → **JDK 내장 PBKDF2(HMAC-SHA256, 매번 임의 salt, self-describing `pbkdf2$iter$salt$hash`)로 교체**. 새 의존성 0개(모듈 "순수 Java" 정체성 유지). MD5 는 평문 복구 불가라 일괄 변환이 불가능 → `verifyPassword` 가 PBKDF2·레거시 MD5 **두 형식을 모두 검증**(투명/점진 마이그레이션), `needsRehash` 로 로그인 시 재해시(upgrade-on-login) 가능. 회귀 테스트 `CryptoUtilsTest`(6개: 형식·salt 비결정성·검증·레거시 폴백·needsRehash·null 안전). | 높음(보안) | 동작변경(해시 교체 + 점진 마이그레이션) — 완료 |
-| BT1 | `batch/job/SettlementJob.java`, `DailySalesAggregationJob.java` | 🐞 **취소 주문이 매출에 포함.** `OrderRow.status` 를 매핑만 하고 필터에 안 써 `CANCELLED` 도 합산 → 매출 과대계상. | 높음 | 동작변경(상태 필터) |
+| BT1 | `batch/job/SettlementJob.java`, `DailySalesAggregationJob.java` | ✅ **수정됨(2026-06-16).** (이전) `OrderRow.status` 를 매핑만 하고 필터에 안 써 `CANCELLED` 도 합산 → 매출 과대계상 → **두 잡 모두 `status == CANCELLED` 행을 합산에서 제외**. `DailySalesAggregationJob.aggregate()` 는 테스트 관측을 위해 `DailySales(count, revenue)` record 반환(읽기 전용 유지). **batch 모듈 첫 테스트 인프라**(`spring-boot-starter-test`) + `SettlementJobTest`·`DailySalesAggregationJobTest`(각 2개, `ReflectionTestUtils` 로 read-only `OrderRow` 픽스처). B7(타임존)은 범위 밖이라 유지. | 높음 | 동작변경(상태 필터) — 완료 |
 | BT2 | `batch/domain/OrderStatus.java` | ⚠️ **enum 복제 드리프트.** 공유 DB 라 ecommerce enum 을 import 못 해 재정의. ecommerce 가 상태 추가 시 batch 는 모르고, 미지값 읽으면 Hibernate 예외. | 중간 | 동작보존(동기화) |
 | CU2 | `common-util/util/JsonUtils.java` | ⚠️ **오류 처리 비일관.** `toJson` 은 예외 삼키고 `null`, `fromJson` 은 `RuntimeException` → 호출부가 일관 처리 불가. | 중간 | 동작보존(정책 통일) |
 | CU3 | `common-util/util/ValidationUtils.java` | ⚠️ **정규식 과허용/지역 고정.** `EMAIL` 단순·과허용, `PHONE` 한국 `01x` 전용(국제·유선 불통과). | 낮음 | 동작변경(정규식 강화) |
@@ -70,7 +70,7 @@
    ✅ **완료** (2026-06-12): `common-util`/`ecommerce-service`/`payment-service`에 28개 테스트. B1·B2·B3·B4·B6의
    현재 동작이 고정되어 있다. 이제 아래 수정은 해당 단언을 같은 커밋에서 뒤집으며 진행한다.
 2. **보안 최우선** (모듈 발견) — **3건 모두 ✅ 완료(2026-06-15)**: ~~E1(SQL 인젝션)~~ 파라미터 바인딩 + `ProductSearchDaoTest`. ~~A1(무인증 환불)~~ `AdminAuth` 주입 + `X-Admin-Token` 검사 + `AdminRefundControllerTest`. ~~CU1(MD5 해시)~~ PBKDF2(임의 salt)+레거시 MD5 검증 폴백(점진 마이그레이션) + `CryptoUtilsTest`.
-3. **고영향·저위험 버그**: ~~B1(재고 이중차감)~~ ✅ 완료(2026-06-16, `confirm` 비차감 + `InventoryServiceTest`), ~~B6(과다환불)~~ ✅ 완료(2026-06-16, 한도 검증 + `RefundServiceTest` 단언 뒤집음). 남은: B2, B3, B4, BT1 (테스트의 단언을 같은 커밋에서 뒤집어 의도를 드러낸다).
-4. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거), CU2(JSON 오류처리).
+3. **고영향·저위험 버그 — 전부 ✅ 완료(2026-06-16)**: ~~B1(재고 이중차감)~~ `confirm` 비차감 + `InventoryServiceTest`, ~~B6(과다환불)~~ 한도 검증 + `RefundServiceTest` 단언 뒤집음, ~~B2(장바구니 수량무시)~~ `MoneyUtils.multiply` 합산 + `CartServiceTest` 단언 뒤집음, ~~B3(round 버림)~~ `BigDecimal` HALF_UP + `MoneyUtilsTest` 단언 뒤집음, ~~B4(쿠폰 off-by-one)~~ `isBefore` + `CouponServiceTest` 단언 뒤집음, ~~BT1(취소주문 매출)~~ `CANCELLED` 필터 + batch 첫 테스트(`SettlementJobTest`·`DailySalesAggregationJobTest`). **남은 고영향 버그**: B5(페이지 오프셋), B7(집계 타임존).
+4. **동작보존 정리**: C1(로깅), R4(예외 로깅), R8(타임아웃), R6(중복 제거 — B3 이후 admin floor 분기 해소 포함), CU2(JSON 오류처리).
 5. **구조 리팩토링**: R1(God method 추출), R2(Map→DTO), BT2(enum 동기화).
 6. **대형 과제**: BigDecimal 전환, DB 구조, 설정 외부화(R5), B7 타임존 정리.

@@ -18,10 +18,11 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.Mockito.when;
 
 /**
- * CouponService.getValidCoupon 의 현재 동작 고정.
+ * CouponService.getValidCoupon 의 동작 고정.
  *
- * 주의: 만료 검사가 `!expiryDate.isAfter(오늘)` 이라 '만료일 당일' 쿠폰이 거부된다(off-by-one).
- * Coupon.expiryDate 주석은 "만료일 당일 포함" 이므로 의도와 어긋난다. (docs/known-issues.md B4)
+ * B4 수정(2026-06-16): 만료 검사가 `isBefore(오늘)` 이라 '만료일 당일' 쿠폰이 유효하다(이전에는
+ * `!isAfter(오늘)` 라 당일 거부 = off-by-one). Coupon.expiryDate 주석 "만료일 당일 포함" 과 일치.
+ * (docs/known-issues.md B4)
  */
 @ExtendWith(MockitoExtension.class)
 class CouponServiceTest {
@@ -42,16 +43,12 @@ class CouponServiceTest {
     }
 
     @Test
-    void expiryToday_isRejected_offByOne() {
-        when(couponRepository.findByCode("SAVE10"))
-                .thenReturn(Optional.of(couponExpiring(LocalDate.now())));
+    void expiryToday_isValid_inclusive() {
+        Coupon valid = couponExpiring(LocalDate.now());
+        when(couponRepository.findByCode("SAVE10")).thenReturn(Optional.of(valid));
 
-        BusinessException ex = catchThrowableOfType(BusinessException.class,
-                () -> couponService.getValidCoupon("SAVE10"));
-
-        // "만료일 당일 포함" 의도와 달리 당일에 만료 처리된다.
-        assertThat(ex).isNotNull();
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.COUPON_EXPIRED);
+        // "만료일 당일 포함" — 당일 쿠폰은 유효(B4 수정 전에는 당일에 만료 처리되었다).
+        assertThat(couponService.getValidCoupon("SAVE10")).isSameAs(valid);
     }
 
     @Test

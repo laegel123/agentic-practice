@@ -131,6 +131,7 @@ Windows PowerShell 에서는 `.\gradlew.bat`, POSIX 셸(Bash 도구)에서는 `.
   `test { useJUnitPlatform() }` 를 모든 모듈에 공통 적용한다.
 - Spring Boot 플러그인은 루트에서 `apply false` 로 선언하고, 실행 앱 모듈에서만 `id 'org.springframework.boot'` 로 적용한다.
 - 버전 카탈로그(`libs.versions.toml`)는 쓰지 않는다 — 의도적 결정. [ADR-0004](./adr/0004-no-gradle-version-catalog.md).
-- **테스트**: `common-util`/`ecommerce-service`/`payment-service`에 characterization 테스트가 있다
-  (JUnit5 + Mockito + AssertJ; 의존성은 각 모듈 `build.gradle`의 `testImplementation`). 실행은
-  `./gradlew test`, 인메모리 H2 프로파일(`test`)로 실 파일 DB와 격리된다. `core-framework`/`admin`/`batch`는 아직 테스트 없음.
+- **테스트**: `common-util`/`ecommerce-service`/`payment-service`/`admin`/`batch`에 테스트가 있다(전체 49개,
+  JUnit5 + Mockito + AssertJ; 의존성은 각 모듈 `build.gradle`의 `testImplementation`). characterization +
+  버그수정 회귀(B1·B2·B3·B4·B6·BT1) + 보안 회귀(E1·A1·CU1). 실행은 `./gradlew test`, 인메모리 H2 프로파일(`test`)로
+  실 파일 DB와 격리된다. `core-framework`만 아직 테스트 없음(스모크는 ecommerce 컨텍스트 테스트가 커버).
