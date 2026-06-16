@@ -5,9 +5,11 @@ spring:
   application:
     name: admin
 
-# 어드민 인증 토큰 (하드코딩 기본값)
+# 어드민 인증 토큰 — 환경변수 ADMIN_TOKEN 으로 외부 주입(미설정 시 기동 실패, fail-closed).
+# 로컬 실행 예: PowerShell `$env:ADMIN_TOKEN="dev-token"; .\gradlew.bat :admin:bootRun`
+#              또는 `.\gradlew.bat :admin:bootRun --args='--admin.token=dev-token'`
 admin:
-  token: admin-secret
+  token: ${ADMIN_TOKEN:}
 
 # 호출 대상 서비스 주소
 ecommerce:

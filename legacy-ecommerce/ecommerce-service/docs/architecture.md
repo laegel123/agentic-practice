@@ -192,12 +192,14 @@ payment:
 `CouponServiceTest` 는 B2·B4 수정의 회귀이고(단언을 같은 커밋에서 뒤집음), `ProductServiceTest`(3개)는 B5 페이징
 회귀이며, 그리고 이 모듈은 추가로 `repository/ProductSearchDaoTest`(E1 SQL 인젝션 회귀, `@DataJpaTest` 3개)와
 `client/PaymentClientTest`(R2 와이어 계약 회귀, MockRestServiceServer 2개)를 둔다.
-모노레포 전체는 **67개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
+모노레포 전체는 **77개** = characterization 28 + 버그수정 회귀 17(B1 `InventoryServiceTest` 5 + BT1·B7 batch
 `SettlementJobTest`·`DailySalesAggregationJobTest` 5 + B5 core-framework `PageRequestDtoTest` 4·ecommerce `ProductServiceTest` 3;
 B2·B3·B4·B6 는 기존 characterization 단언을 뒤집어 흡수) + 보안 회귀 12(E1 `ProductSearchDaoTest` 3 +
 admin A1 `AdminRefundControllerTest` 3 + common-util CU1 `CryptoUtilsTest` 6) + 동작보존 정리 회귀 8(R4 core-framework
 `GlobalExceptionHandlerTest` 2 + R6 admin `AdminPriceCalculatorTest` 3 + CU2 common-util `JsonUtilsTest` 3) +
-구조 리팩토링 회귀 2(R2 ecommerce `PaymentClientTest` 2; R1·BT2 는 기존 테스트가 안전망).
+구조 리팩토링 회귀 2(R2 ecommerce `PaymentClientTest` 2; R1·BT2 는 기존 테스트가 안전망) +
+리뷰 후속 보강 10(B5 page≤0 클램프 `PageRequestDtoTest`+2·`ProductServiceTest`+2 + A1 후속 admin `AdminAuthTest` 3 +
+B6 후속 음수환불 `RefundServiceTest`+2 + CU1 후속 `CryptoUtilsTest` hashPassword null +1).
 
 ## 의존성 / 기동 순서
 

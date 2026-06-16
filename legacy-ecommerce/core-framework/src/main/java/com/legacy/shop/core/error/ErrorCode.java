@@ -27,6 +27,7 @@ public enum ErrorCode {
     PAYMENT_FAILED(400, "PM001", "결제에 실패했습니다"),
     REFUND_EXCEEDS_PAYMENT(400, "PM002", "환불금액이 결제금액을 초과합니다"),
     PAYMENT_NOT_FOUND(404, "PM003", "결제내역을 찾을 수 없습니다"),
+    INVALID_REFUND_AMOUNT(400, "PM004", "환불금액이 올바르지 않습니다"),
 
     // 고객/권한
     CUSTOMER_NOT_FOUND(404, "U001", "고객을 찾을 수 없습니다"),

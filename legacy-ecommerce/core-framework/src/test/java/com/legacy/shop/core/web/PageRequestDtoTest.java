@@ -46,4 +46,25 @@ class PageRequestDtoTest {
         // 기본값(page=1, size=20)도 첫 페이지이므로 offset 0.
         assertThat(new PageRequestDto().getOffset()).isZero();
     }
+
+    @Test
+    void zeroPage_clampsToFirstPage_offsetZero_notNegative() {
+        // B5 후속(리뷰 차단): page=0 은 첫 페이지로 정규화돼 offset 0.
+        // (클램프 전이라면 (0-1)*20 = -20 → 호출부 subList 음수 인덱스로 500 크래시)
+        PageRequestDto dto = new PageRequestDto();
+        dto.setPage(0);
+        dto.setSize(20);
+
+        assertThat(dto.getOffset()).isZero();
+    }
+
+    @Test
+    void negativePage_clampsToFirstPage_offsetZero_notNegative() {
+        // page 음수도 첫 페이지로 정규화돼 offset 은 절대 음수가 되지 않는다.
+        PageRequestDto dto = new PageRequestDto();
+        dto.setPage(-5);
+        dto.setSize(20);
+
+        assertThat(dto.getOffset()).isZero();
+    }
 }

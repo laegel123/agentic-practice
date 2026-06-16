@@ -94,7 +94,7 @@ ecommerce :8081 ─RestTemplate─▶ payment :8082   (결제 charge/refund — 
   응답은 무상태 프록시 특성상 의도적으로 `Map` 으로 유지**한다(타입화 시 도메인 중복 모델링·응답 바이트 변경).
   회귀 `PaymentClientTest`(MockRestServiceServer). 배경·남은 과제(공유 계약 모듈)는 [ADR-0005](./adr/0005-map-based-inter-service-http.md).
 - 호출 대상 URL은 `@Value` 기본값으로 하드코딩되어 있다(`http://localhost:8081` 등).
-- 인증: `admin` API는 `X-Admin-Token` 헤더를 `AdminAuth` 가 검증한다(토큰 기본값 `admin-secret` 하드코딩).
+- 인증: `admin` API는 `X-Admin-Token` 헤더를 `AdminAuth` 가 검증한다(✅ 2026-06-16 — 토큰은 환경변수 `ADMIN_TOKEN` 외부주입, 미설정 시 기동 실패(fail-closed), 상수시간 비교. 이전의 `admin-secret` 공개 기본값 제거).
 
 ## REST API 표면 (요약)
 
@@ -134,7 +134,7 @@ Windows PowerShell 에서는 `.\gradlew.bat`, POSIX 셸(Bash 도구)에서는 `.
   `test { useJUnitPlatform() }` 를 모든 모듈에 공통 적용한다.
 - Spring Boot 플러그인은 루트에서 `apply false` 로 선언하고, 실행 앱 모듈에서만 `id 'org.springframework.boot'` 로 적용한다.
 - 버전 카탈로그(`libs.versions.toml`)는 쓰지 않는다 — 의도적 결정. [ADR-0004](./adr/0004-no-gradle-version-catalog.md).
-- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 67개,
+- **테스트**: `common-util`/`core-framework`/`ecommerce-service`/`payment-service`/`admin`/`batch` 전 모듈에 테스트가 있다(전체 77개,
   JUnit5 + Mockito + AssertJ; 의존성은 각 모듈 `build.gradle`의 `testImplementation`). characterization +
   버그수정 회귀(B1·B2·B3·B4·B5·B6·B7·BT1) + 보안 회귀(E1·A1·CU1) + 동작보존 정리 회귀(R4 `GlobalExceptionHandlerTest`·R6 `AdminPriceCalculatorTest`·CU2 `JsonUtilsTest`) + 구조 리팩토링 회귀(R2 `PaymentClientTest`; R1·BT2 는 기존 테스트가 안전망).
   실행은 `./gradlew test`, 인메모리 H2 프로파일(`test`)로 실 파일 DB와 격리된다. `core-framework` 는 순수 POJO 검증용 `PageRequestDtoTest`(B5)로 첫 테스트가 생겼다.

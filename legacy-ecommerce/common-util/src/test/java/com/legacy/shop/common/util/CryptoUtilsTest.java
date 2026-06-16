@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * CryptoUtils 보안 회귀 테스트 (CU1).
@@ -50,6 +51,13 @@ class CryptoUtilsTest {
     void needsRehash_trueForLegacy_falseForPbkdf2() {
         assertThat(CryptoUtils.needsRehash(CryptoUtils.md5("password1"))).isTrue();
         assertThat(CryptoUtils.needsRehash(CryptoUtils.hashPassword("password1"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("hashPassword(null) 은 NPE 대신 명확한 IllegalArgumentException")
+    void hashPassword_nullRaw_throwsIllegalArgument() {
+        assertThatThrownBy(() -> CryptoUtils.hashPassword(null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

@@ -107,6 +107,28 @@ class RefundServiceTest {
     }
 
     @Test
+    void negativeAmount_isRejected_throwsInvalidRefundAmount_andWritesNothing() {
+        // B6 후속(리뷰 차단): 음수 환불액은 누계를 줄여 과다환불 가드를 우회하므로 입력 단계에서 거부.
+        // 환불/원장 미기록, 결제 상태 불변. (결제 조회 전에 막히므로 findById 스텁도 불필요)
+        BusinessException ex = catchThrowableOfType(BusinessException.class,
+                () -> refundService.refund(PAYMENT_ID, -10.0, "음수환불"));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_REFUND_AMOUNT);
+        verify(refundRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
+    }
+
+    @Test
+    void zeroAmount_isRejected_throwsInvalidRefundAmount() {
+        BusinessException ex = catchThrowableOfType(BusinessException.class,
+                () -> refundService.refund(PAYMENT_ID, 0.0, "영원환불"));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_REFUND_AMOUNT);
+        verify(refundRepository, never()).save(any());
+        verify(ledgerRepository, never()).save(any());
+    }
+
+    @Test
     void unknownPayment_throwsPaymentNotFound() {
         when(paymentRepository.findById(9L)).thenReturn(Optional.empty());
 

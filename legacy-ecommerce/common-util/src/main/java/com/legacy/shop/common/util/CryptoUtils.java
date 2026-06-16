@@ -35,6 +35,10 @@ public class CryptoUtils {
      * 같은 비밀번호라도 해시가 매번 다르다(레인보우테이블·동일비번 노출 차단).
      */
     public static String hashPassword(String raw) {
+        if (raw == null) {
+            // null 이면 raw.toCharArray() 에서 의미 없는 NPE 가 난다 — 호출부에 분명한 신호를 준다.
+            throw new IllegalArgumentException("raw password must not be null");
+        }
         byte[] salt = new byte[SALT_BYTES];
         RANDOM.nextBytes(salt);
         byte[] hash = pbkdf2(raw.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_BITS);

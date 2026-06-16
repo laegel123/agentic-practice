@@ -27,7 +27,7 @@ public class AdminProductController {
 
     @GetMapping
     public ApiResponse<Object> list(@RequestHeader(value = "X-Admin-Token", required = false) String token,
-                                    @RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size) {
         adminAuth.check(token);
         return ApiResponse.success(gateway.listProducts(page, size));

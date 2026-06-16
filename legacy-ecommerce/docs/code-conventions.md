@@ -101,7 +101,7 @@ public class CouponService {
 ## 설정
 
 - 모듈별 `src/main/resources/application.yml`. 포트/DB/외부 URL/토큰을 여기서 관리한다.
-- ⚠️ 서비스 URL, `admin.token`(=`admin-secret`), DB 경로가 하드코딩 기본값으로 들어가 있다. 운영에서는 환경변수/프로파일로 외부화가 필요하다.
+- ⚠️ 서비스 URL, DB 경로가 하드코딩 기본값으로 들어가 있다. 운영에서는 환경변수/프로파일로 외부화가 필요하다. (`admin.token` 은 ✅ 2026-06-16 환경변수 `ADMIN_TOKEN` 외부주입·fail-closed 로 전환 — 기본값 없으면 기동 실패.)
 
 ## 빌드 / 버전
 

@@ -24,7 +24,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```powershell
 .\gradlew.bat :ecommerce-service:build      # 빌드
 .\gradlew.bat :ecommerce-service:bootRun     # 실행 (:8081)
-.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart[B2]·Coupon[B4]·Order[R1 추출 안전망]·Inventory[B1]·Product[B5 페이징]) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀) + PaymentClientTest(R2 와이어 계약)
+.\gradlew.bat :ecommerce-service:test        # 테스트 — 서비스 단위(Pricing·Cart[B2]·Coupon[B4]·Order[R1 추출 안전망]·Inventory[B1]·Product[B5 페이징+page≤0 비크래시]) + 컨텍스트 1 + ProductSearchDaoTest(E1 보안 회귀) + PaymentClientTest(R2 와이어 계약)
 ```
 
 > 테스트는 **현재 동작(버그 포함)을 고정하는 characterization 테스트**다(JUnit5 + Mockito + AssertJ,

@@ -41,7 +41,7 @@ src/main/java/com/legacy/shop/common/util/
 | `MoneyUtils` | 금액 계산(`double`) | ✅ `round()` `BigDecimal` **HALF_UP 반올림**(B3 수정; 이전 `Math.floor` 버림) |
 | `DateUtils` | 날짜·시각 변환 | `now()`=UTC, `localToday()`=서버로컬(달력 날짜용). ✅ B7 은 집계 측을 UTC 로 통일해 해소(코드 유지, 주석 정정). static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
 | `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) |
-| `CryptoUtils` | 비밀번호 해시 | ✅ PBKDF2+임의 salt (CU1 수정; 레거시 MD5 검증 폴백) |
+| `CryptoUtils` | 비밀번호 해시 | ✅ PBKDF2+임의 salt (CU1 수정; 레거시 MD5 검증 폴백). ✅ `hashPassword(null)` 은 NPE 대신 `IllegalArgumentException`(리뷰 후속) |
 | `JsonUtils` | 직렬화/역직렬화 | ✅ 오류 처리 fail-fast 통일(CU2 수정; toJson/fromJson 둘 다 `JsonException`. 이전 toJson null·fromJson RuntimeException) |
 | `ValidationUtils` | 형식 검증 | 정규식 단순/한국 전용(CU3) |
 

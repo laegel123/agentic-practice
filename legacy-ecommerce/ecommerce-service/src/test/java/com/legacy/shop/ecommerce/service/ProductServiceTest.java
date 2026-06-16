@@ -85,4 +85,24 @@ class ProductServiceTest {
         // offset = (3-1)*5 = 10 >= 10 → 빈 결과.
         assertThat(productService.list(page(3, 5))).isEmpty();
     }
+
+    @Test
+    void zeroPage_clampsToFirstSlice_doesNotCrash() {
+        // B5 후속(리뷰 차단): page=0(어드민 기본 호출 경로 등)이 음수 offset 으로 500 을 내지 않고
+        // 첫 페이지를 반환해야 한다. (클램프 전이라면 offset=-5 → subList(-5, ..) IndexOutOfBounds → 500)
+        when(productRepository.findByActiveTrue()).thenReturn(products(10));
+
+        List<Product> result = productService.list(page(0, 5));
+
+        assertThat(names(result)).containsExactly("P1", "P2", "P3", "P4", "P5");
+    }
+
+    @Test
+    void negativePage_clampsToFirstSlice_doesNotCrash() {
+        when(productRepository.findByActiveTrue()).thenReturn(products(10));
+
+        List<Product> result = productService.list(page(-3, 5));
+
+        assertThat(names(result)).containsExactly("P1", "P2", "P3", "P4", "P5");
+    }
 }
