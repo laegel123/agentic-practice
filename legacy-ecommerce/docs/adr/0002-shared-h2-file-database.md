@@ -29,6 +29,7 @@
 - (−) **ecommerce ↔ batch 가 스키마 수준에서 강결합**된다. 이커머스가 먼저 떠서 스키마를 만든
   뒤에야 배치가 동작한다(기동 순서 의존). 이커머스의 엔티티 변경이 배치를 조용히 깨뜨릴 수 있다.
 - (−) 파일 DB + `AUTO_SERVER` 는 동시성·확장성에 한계가 있고 운영 적합성이 낮다.
-- (−) 자격증명/경로가 `application.yml` 에 하드코딩되어 있다([known-issues.md](../known-issues.md) R5).
+- (−) ~~자격증명/경로가 `application.yml` 에 하드코딩되어 있다([known-issues.md](../known-issues.md) R5).~~
+  → ✅ 환경변수로 외부화([ADR-0007](./0007-config-via-environment-variables.md), 2026-06-16). ecommerce·batch 가 같은 `SHOP_DB_*` 를 읽어 **이 공유 결합이 곧 분리 지점**이 되었다.
 - **재검토 트리거**: 다중 인스턴스 운영, 데이터량 증가, 또는 ecommerce/batch 스키마 분리가
   필요해지는 시점. 외부 DBMS 전환 + 배치의 데이터 접근 방식 재설계를 함께 검토한다.

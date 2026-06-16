@@ -94,7 +94,7 @@ ecommerce :8081 ─RestTemplate─▶ payment :8082   (결제 charge/refund — 
   `ShopGateway` 는 직접 조립하는 환불 요청 바디를 타입 record 로 교체했다. admin 의 조회/생성 **패스스루
   응답은 무상태 프록시 특성상 의도적으로 `Map` 으로 유지**한다(타입화 시 도메인 중복 모델링·응답 바이트 변경).
   회귀 `PaymentClientTest`(MockRestServiceServer). 배경·남은 과제(공유 계약 모듈)는 [ADR-0005](./adr/0005-map-based-inter-service-http.md).
-- 호출 대상 URL은 `@Value` 기본값으로 하드코딩되어 있다(`http://localhost:8081` 등).
+- 호출 대상 URL·DB 접속정보는 환경변수로 외부 주입한다(미설정 시 로컬 기본값 — R5 ✅, [ADR-0007](./adr/0007-config-via-environment-variables.md)).
 - 인증: `admin` API는 `X-Admin-Token` 헤더를 `AdminAuth` 가 검증한다(✅ 2026-06-16 — 토큰은 환경변수 `ADMIN_TOKEN` 외부주입, 미설정 시 기동 실패(fail-closed), 상수시간 비교. 이전의 `admin-secret` 공개 기본값 제거).
 
 ## REST API 표면 (요약)

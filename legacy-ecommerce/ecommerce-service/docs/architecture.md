@@ -135,7 +135,8 @@ PaymentClient.refund(paymentId, amount)  → PaymentRefundRequest 로 POST /api/
 
 ✅ **raw `Map` 통신(R2) 수정됨(2026-06-16)**: 요청·응답을 타입 record(`client/dto/*`)로 교체하고
 `((Number) data.get("paymentId")).longValue()` 캐스팅을 제거했다([ADR-0005](../../docs/adr/0005-map-based-inter-service-http.md)).
-회귀 `PaymentClientTest`(MockRestServiceServer 와이어 계약). `@Value` 하드코딩 URL(R5)은 그대로다.
+회귀 `PaymentClientTest`(MockRestServiceServer 와이어 계약). 호출 대상 URL·DB 접속정보는 환경변수로
+외부화됐다(R5 ✅, [ADR-0007](../../docs/adr/0007-config-via-environment-variables.md)).
 (`RestTemplateConfig` 타임아웃 미설정 R8 도 ✅ 수정됨 — connect 2s/read 5s.)
 
 ## 설정 (`src/main/resources/application.yml`)
@@ -145,20 +146,21 @@ server:
   port: 8081
 spring:
   datasource:
-    url: jdbc:h2:file:~/legacyshopdb;AUTO_SERVER=TRUE   # batch 와 공유하는 파일 DB
-    username: sa
-    password:                                            # 비밀번호 없음
+    url: ${SHOP_DB_URL:jdbc:h2:file:~/legacyshopdb;AUTO_SERVER=TRUE}  # batch 와 공유(같은 SHOP_DB_*)
+    username: ${SHOP_DB_USERNAME:sa}
+    password: ${SHOP_DB_PASSWORD:}                       # 기본 빈 값(H2 로컬)
   jpa:
     hibernate:
       ddl-auto: update                                   # ⚠ 이 모듈이 스키마를 생성·갱신
   h2:
     console: { enabled: true, path: /h2-console }
 payment:
-  base-url: http://localhost:8082                        # ⚠ 하드코딩 기본값 (R5)
+  base-url: ${PAYMENT_BASE_URL:http://localhost:8082}    # 환경변수 외부화, 미설정 시 로컬 기본값
 ```
 
 `payment.base-url` 은 `PaymentClient` 생성자에서 `@Value("${payment.base-url:http://localhost:8082}")`
-로 주입한다. 공유 H2 파일 DB 배경은 [ADR-0002](../../docs/adr/0002-shared-h2-file-database.md).
+로 주입한다. URL·DB 접속정보의 환경변수 외부화는 [ADR-0007](../../docs/adr/0007-config-via-environment-variables.md),
+공유 H2 파일 DB 배경은 [ADR-0002](../../docs/adr/0002-shared-h2-file-database.md).
 
 ## 데이터 시딩 (`config/DataSeeder`)
 

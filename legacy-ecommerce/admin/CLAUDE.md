@@ -63,7 +63,8 @@ src/main/java/com/legacy/shop/admin/
   패스스루의 **응답은 의도적으로 `Map`/`Object` 유지** — admin 은 도메인 모델 없는 무상태 프록시라, 타입을
   입히면 ecommerce 도메인을 중복 모델링하고 응답 바이트가 바뀐다([ADR-0005](../docs/adr/0005-map-based-inter-service-http.md)).
 - 응답은 `ApiResponse<T>` 로 감싸고, 오류는 `throw new BusinessException(ErrorCode.XXX)` 로 던진다.
-- ⚠️ 남은 과제: 서비스 URL 하드코딩(R5 — 운영은 환경변수/프로파일로 외부화). 모노레포
+- 서비스 URL 은 환경변수로 외부 주입한다(`ECOMMERCE_BASE_URL`·`PAYMENT_BASE_URL`, 미설정 시 로컬
+  기본값 — R5 ✅, [ADR-0007](../docs/adr/0007-config-via-environment-variables.md)). 모노레포
   [`../docs/known-issues.md`](../docs/known-issues.md) 참고.
 
 ## 더 읽기

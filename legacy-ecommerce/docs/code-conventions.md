@@ -101,7 +101,9 @@ public class CouponService {
 ## 설정
 
 - 모듈별 `src/main/resources/application.yml`. 포트/DB/외부 URL/토큰을 여기서 관리한다.
-- ⚠️ 서비스 URL, DB 경로가 하드코딩 기본값으로 들어가 있다. 운영에서는 환경변수/프로파일로 외부화가 필요하다. (`admin.token` 은 ✅ 2026-06-16 환경변수 `ADMIN_TOKEN` 외부주입·fail-closed 로 전환 — 기본값 없으면 기동 실패.)
+- 서비스 URL·DB 접속정보·토큰은 `${ENV:기본값}` 으로 외부화한다(기본값은 종전 리터럴과 동일 → 로컬은
+  설정 0개로 기동, 운영은 환경변수 주입 — R5 ✅, [ADR-0007](./adr/0007-config-via-environment-variables.md)).
+  시크릿(`admin.token`/`ADMIN_TOKEN`)은 안전한 기본값이 없으므로 fail-closed(미설정 시 기동 실패).
 
 ## 빌드 / 버전
 

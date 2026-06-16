@@ -45,6 +45,9 @@ H2 파일 DB, 물리 2개. user `sa`, 비밀번호 없음. 각 웹 앱 `/h2-cons
 - `~/legacyshopdb` — ecommerce(스키마 생성, `ddl-auto:update`) + batch(공유, `ddl-auto:none`)
 - `~/legacypaydb` — payment 전용
 
+접속정보·서비스 URL 은 환경변수로 외부 주입한다(미설정 시 위 로컬 기본값 — [ADR-0007](./docs/adr/0007-config-via-environment-variables.md)에 키 목록).
+`SHOP_DB_*`(ecommerce·batch 공유) · `PAYMENT_DB_*` · `ECOMMERCE_BASE_URL` · `PAYMENT_BASE_URL` · `ADMIN_TOKEN`(fail-closed).
+
 ## 최초 설정 (1회) — git 훅
 
 `pre-push` 훅이 `legacy-ecommerce/.githooks/` 에 있다 — (1) `main` 강제 푸쉬/삭제 차단,
@@ -78,19 +81,17 @@ git config core.hooksPath legacy-ecommerce/.githooks
 - `DateUtils`: static `SimpleDateFormat`(thread-unsafe, R3) · `parse()` 가 `ParseException` 을 삼키고
   `null` 반환(C4, 호출부 NPE 위험). `now()`=UTC 와 `localToday()`=서버로컬을 **혼용 금지**(달력 날짜엔
   `localToday()`, UTC 주문 시각 집계엔 UTC 기준).
-- 서비스 URL·DB 경로 **하드코딩**(R5 잔여) — 운영 분리 불가. 환경변수/프로파일로 외부화 필요.
 - refund/reserve 의 check-then-act **TOCTOU 경합**(락/유니크 제약 없음 — 동시 요청 2건이 둘 다 통과
   가능; 단일 H2라 당장 영향은 작음).
 - batch `findAll()` 후 Java 필터(C2, 전체 스캔) · `ValidationUtils` 정규식 과허용·한국 전용(CU3) ·
   엔티티가 FK 없이 `Long` id 만 보유(R7).
 
-> 이미 **고쳐진** 결함의 이력(B1~B7·BT1·E1·A1·CU1·R1·R2·R4·R6·R8·C1·CU2·BigDecimal 전환)과 남은
+> 이미 **고쳐진** 결함의 이력(B1~B7·BT1·E1·A1·CU1·R1·R2·R4·R5·R6·R8·C1·CU2·BigDecimal 전환·설정 외부화)과 남은
 > 과제의 우선순위·상태는 [`docs/known-issues.md`](./docs/known-issues.md) 가 단일 출처다 — CLAUDE.md
 > 에 중복하지 않는다. 결정 배경은 [`docs/adr/`](./docs/adr/), 변경 이력은 git 을 본다.
 
 ## 남은 대형 과제
 
-- **공유 H2 DB 분리/전환** ([ADR-0002](./docs/adr/0002-shared-h2-file-database.md)) — ecommerce↔batch 공유 구조의 결합·동시성 한계.
-- **설정 외부화** (R5 — 서비스 URL·DB 경로). `admin.token` 은 환경변수 주입으로 완료.
+- **공유 H2 DB 분리/전환** ([ADR-0002](./docs/adr/0002-shared-h2-file-database.md)) — ecommerce↔batch 공유 구조의 결합·동시성 한계. 설정 외부화([ADR-0007](./docs/adr/0007-config-via-environment-variables.md))로 ecommerce·batch 가 같은 `SHOP_DB_*` 를 읽게 해 **분리 지점이 한 곳에 드러나 있다**.
 
 상세·우선순위는 [`docs/known-issues.md`](./docs/known-issues.md) "권장 처리 순서".

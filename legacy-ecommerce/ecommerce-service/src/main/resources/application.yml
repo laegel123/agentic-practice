@@ -5,9 +5,11 @@ spring:
   application:
     name: ecommerce-service
   datasource:
-    url: jdbc:h2:file:~/legacyshopdb;AUTO_SERVER=TRUE
-    username: sa
-    password:
+    # 공유 shop DB(ecommerce 가 스키마 소유 · batch 가 같은 파일을 공유) — 환경변수로 외부 주입,
+    # 미설정 시 로컬 파일 DB 기본값(R5). batch 와 '같은' SHOP_DB_* 를 써 동일 DB 를 가리킨다(ADR-0007).
+    url: ${SHOP_DB_URL:jdbc:h2:file:~/legacyshopdb;AUTO_SERVER=TRUE}
+    username: ${SHOP_DB_USERNAME:sa}
+    password: ${SHOP_DB_PASSWORD:}
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
@@ -21,6 +23,6 @@ spring:
       enabled: true
       path: /h2-console
 
-# 결제 서비스 주소 (하드코딩된 기본값)
+# 결제 서비스 주소 — 환경변수 PAYMENT_BASE_URL 로 외부 주입(미설정 시 로컬 기본값, R5/ADR-0007).
 payment:
-  base-url: http://localhost:8082
+  base-url: ${PAYMENT_BASE_URL:http://localhost:8082}

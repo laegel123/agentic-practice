@@ -11,8 +11,8 @@ spring:
 admin:
   token: ${ADMIN_TOKEN:}
 
-# 호출 대상 서비스 주소
+# 호출 대상 서비스 주소 — 환경변수로 외부 주입(미설정 시 로컬 기본값, R5/ADR-0007).
 ecommerce:
-  base-url: http://localhost:8081
+  base-url: ${ECOMMERCE_BASE_URL:http://localhost:8081}
 payment:
-  base-url: http://localhost:8082
+  base-url: ${PAYMENT_BASE_URL:http://localhost:8082}
