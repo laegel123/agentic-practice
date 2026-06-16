@@ -46,3 +46,19 @@ git config core.hooksPath legacy-ecommerce/.githooks
 - 훅은 POSIX `sh` 스크립트다. Windows 에서는 Git for Windows 가 번들 `sh` 로 실행한다.
 - `.gitattributes` 가 훅 파일을 `eol=lf` 로 고정해 CRLF 로 인한 실행 오류를 방지한다.
 - 실행 권한은 `git update-index --chmod=+x legacy-ecommerce/.githooks/pre-push` 로 인덱스에 보존된다.
+  `pre-push` 와 `gradlew` 둘 다 **index 모드 `100755`** 여야 한다 — git 은 **실행권한 없는 훅을 조용히
+  무시**하고, 훅이 호출하는 `./gradlew` 도 실행권한이 없으면 깨진다(둘 다 100755 로 커밋됨).
+
+## 문제 해결 (Troubleshooting)
+
+- **훅이 아예 안 도는 것 같다(POSIX)** — (1) `git config --get core.hooksPath` 가 `legacy-ecommerce/.githooks`
+  인지, (2) `git ls-files -s legacy-ecommerce/.githooks/pre-push legacy-ecommerce/gradlew` 가 둘 다
+  `100755` 인지 확인한다. `100644` 면 git 이 훅을 건너뛴다 → `git update-index --chmod=+x <file>`.
+- **`✋ 테스트 실패` 가 아니라 `Unable to locate a Java Runtime` 으로 막힌다** — 푸쉬하는 **환경에 Java 가
+  안 잡힌 것**이다(테스트 자체 실패가 아님). 훅의 `./gradlew test` 는 `JAVA_HOME` 또는 PATH 의 `java` 로
+  JDK 를 찾는다. push 를 도는 셸에 JDK 가 보이게 한다:
+  - macOS/Homebrew 의 keg-only JDK(`openjdk@21`)는 기본 PATH 에 없다. **비대화형 zsh 는 `~/.zshenv` 만**
+    읽으므로(`.zshrc`/`.zprofile` 아님), `~/.zshenv` 에 `export JAVA_HOME=...`/PATH 를 둔다. 또는
+    `sudo ln -sfn $(brew --prefix openjdk@21)/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-21.jdk`
+    로 시스템에 등록한다.
+  - Windows 는 JDK 설치 시 보통 `JAVA_HOME`/PATH 가 잡혀 있어 추가 조치가 없다.
