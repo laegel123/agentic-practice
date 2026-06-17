@@ -78,15 +78,14 @@ git config core.hooksPath legacy-ecommerce/.githooks
 아래는 **아직 남아있는** 알려진 결함이다. 새 코드에서 모방하지 말고, 손대는 김에 (동작이 바뀌는
 수정이면 현재 동작을 고정하는 characterization 테스트를 먼저 쓴 뒤) 개선한다.
 
-- `DateUtils`: static `SimpleDateFormat`(thread-unsafe, R3) · `parse()` 가 `ParseException` 을 삼키고
-  `null` 반환(C4, 호출부 NPE 위험). `now()`=UTC 와 `localToday()`=서버로컬을 **혼용 금지**(달력 날짜엔
-  `localToday()`, UTC 주문 시각 집계엔 UTC 기준).
+- `DateUtils`: `now()`=UTC 와 `localToday()`=서버로컬을 **혼용 금지**(달력 날짜엔 `localToday()`, UTC
+  주문 시각 집계엔 UTC 기준). (포매터 thread-safety(R3)·`parse()` null 삼킴(C4)은 ✅ 해결됨.)
 - refund/reserve 의 check-then-act **TOCTOU 경합**(락/유니크 제약 없음 — 동시 요청 2건이 둘 다 통과
   가능; 단일 H2라 당장 영향은 작음).
 - batch `findAll()` 후 Java 필터(C2, 전체 스캔) · `ValidationUtils` 정규식 과허용·한국 전용(CU3) ·
   엔티티가 FK 없이 `Long` id 만 보유(R7).
 
-> 이미 **고쳐진** 결함의 이력(B1~B7·BT1·E1·A1·CU1·R1·R2·R4·R5·R6·R8·C1·CU2·BigDecimal 전환·설정 외부화)과 남은
+> 이미 **고쳐진** 결함의 이력(B1~B7·BT1·E1·A1·CU1·R1·R2·R3·R4·R5·R6·R8·C1·C4·CU2·BigDecimal 전환·설정 외부화)과 남은
 > 과제의 우선순위·상태는 [`docs/known-issues.md`](./docs/known-issues.md) 가 단일 출처다 — CLAUDE.md
 > 에 중복하지 않는다. 결정 배경은 [`docs/adr/`](./docs/adr/), 변경 이력은 git 을 본다.
 

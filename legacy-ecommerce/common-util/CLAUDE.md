@@ -29,7 +29,7 @@ Bash 도구(POSIX 셸)는 `./gradlew`.
 ```
 src/main/java/com/legacy/shop/common/util/
 ├── MoneyUtils       금액 계산  — round(HALF_UP)/applyTax/taxOf/multiply/discount/format, 상수 TAX_RATE=0.1
-├── DateUtils        날짜/시각  — format/parse/today/now(UTC)/localToday(서버로컬), static SDF
+├── DateUtils        날짜/시각  — format/parse/today/now(UTC)/localToday(서버로컬), 불변 DateTimeFormatter
 ├── StringUtils      문자열     — isEmpty/isBlank/nvl/maskCard/join
 ├── CryptoUtils      해시       — hashPassword/verifyPassword/needsRehash (PBKDF2+salt; md5 레거시 폴백)
 ├── JsonUtils        JSON       — toJson/fromJson(둘 다 실패 시 JsonException), static ObjectMapper
@@ -39,7 +39,7 @@ src/main/java/com/legacy/shop/common/util/
 | 클래스 | 책임 | 알아둘 점 |
 |--------|------|---------|
 | `MoneyUtils` | 금액 계산(`BigDecimal`) | 전 메서드 `BigDecimal`(scale 2/HALF_UP). rate(할인율 등 무차원 계수) 인자는 `double` 유지 |
-| `DateUtils` | 날짜·시각 변환 | `now()`=UTC, `localToday()`=서버로컬(달력 날짜용). ⚠️ static `SDF` thread-unsafe(R3), `parse()` null 삼킴(C4) |
+| `DateUtils` | 날짜·시각 변환 | `now()`=UTC, `localToday()`=서버로컬(달력 날짜용). thread-safe 불변 `DateTimeFormatter`(R3 ✅), `parse()` 는 형식 오류 시 `DateTimeParseException` fail-fast(C4 ✅) |
 | `StringUtils` | 문자열 보조 | commons-lang3 기능 재구현(중복) — 새 코드는 commons-lang3 사용 |
 | `CryptoUtils` | 비밀번호 해시 | PBKDF2+임의 salt(레거시 MD5 검증 폴백). `hashPassword(null)` 은 `IllegalArgumentException` |
 | `JsonUtils` | 직렬화/역직렬화 | 오류는 fail-fast — `toJson`/`fromJson` 둘 다 실패 시 `JsonException` |
@@ -55,8 +55,9 @@ src/main/java/com/legacy/shop/common/util/
   계산을 복제하지 말고 여기에 추가하며, 비교는 `compareTo`(scale 민감 `equals` 금지). 비율 인자만 `double`
   ([ADR-0006](../docs/adr/0006-money-as-bigdecimal.md)).
 - ⚠️ 아래는 아직 남은 결함이다. **새 코드에서 모방하지 말고**, 손대는 김에 (테스트 선행 후) 개선한다.
-  - `DateUtils`: static `SimpleDateFormat`(R3, thread-unsafe) · `parse()` 가 `ParseException` 을 삼키고
-    `null` 반환(C4, 호출부 NPE 위험). `now()`=UTC 와 `localToday()`=서버로컬을 혼용하지 말 것.
+  - `DateUtils`: `now()`=UTC 와 `localToday()`=서버로컬을 **혼용하지 말 것**(달력 날짜엔 `localToday()`,
+    UTC 주문 시각 집계엔 UTC 기준 — B7 참고). 포매터는 불변 `DateTimeFormatter`(thread-safe, R3 ✅),
+    `parse()` 는 형식 오류 시 `DateTimeParseException` fail-fast(C4 ✅) — `null` 을 반환하지 않는다.
   - `ValidationUtils`: `EMAIL` 정규식 과허용, `PHONE` 한국 `01x` 전용(국제·유선 불통과) — CU3.
   - `commons-lang3:3.12.0` 버전 직접 박음(낡음) — C3.
   - 코드·상세는 모노레포 [`../docs/known-issues.md`](../docs/known-issues.md).

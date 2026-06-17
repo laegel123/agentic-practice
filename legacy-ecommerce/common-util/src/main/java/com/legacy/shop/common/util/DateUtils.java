@@ -1,10 +1,10 @@
 package com.legacy.shop.common.util;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Date;
 
 /**
@@ -12,26 +12,31 @@ import java.util.Date;
  */
 public class DateUtils {
 
-    // 주의: SimpleDateFormat 은 thread-safe 하지 않다. 그런데 static 으로 공유하고 있다.
-    private static final SimpleDateFormat SDF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    // DateTimeFormatter 는 불변이라 thread-safe — static 공유가 안전하다(R3, 종전 SimpleDateFormat 대체).
+    // 패턴에 zone/offset 이 없으므로 java.util.Date 와의 변환은 시스템 기본 시간대로 해석한다
+    // (종전 SimpleDateFormat 의 기본 동작과 동일).
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private DateUtils() {
     }
 
     public static String format(Date date) {
-        return SDF.format(date);
+        LocalDateTime ldt = LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+        return FMT.format(ldt);
     }
 
+    /**
+     * "yyyy-MM-dd HH:mm:ss" 문자열을 시스템 기본 시간대 기준으로 파싱한다.
+     * 형식이 맞지 않으면 {@link DateTimeParseException}(unchecked)을 던진다 — 예외를 삼키고 {@code null}
+     * 을 반환해 호출부 NPE 를 유발하던 종전 동작(C4)을 fail-fast 로 바꾼 것이다.
+     */
     public static Date parse(String s) {
-        try {
-            return SDF.parse(s);
-        } catch (ParseException e) {
-            return null; // 그냥 null 리턴
-        }
+        LocalDateTime ldt = LocalDateTime.parse(s, FMT);
+        return Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
     }
 
     public static String today() {
-        return new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+        return LocalDate.now().toString(); // ISO-8601 = "yyyy-MM-dd"
     }
 
     /** 주문 시각 등에 쓰는 현재시각. 항상 UTC 로 박는다. */
